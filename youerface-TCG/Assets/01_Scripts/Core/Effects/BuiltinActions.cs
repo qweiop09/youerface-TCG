@@ -108,6 +108,8 @@ namespace TCG.Core.Effects
                     continue;
                 e.BaseMaxHealth += amount;
                 context.Rules.EmitStats(e);
+                if (e.IsDead)
+                    context.Rules.RemoveFromBoard(e, Events.ExitReason.Died);
             }
         }
 

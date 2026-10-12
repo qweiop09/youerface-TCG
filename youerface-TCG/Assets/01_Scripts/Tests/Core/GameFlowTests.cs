@@ -133,6 +133,20 @@ namespace TCG.Tests.Core
         public void BothHeroesDie_IsDraw()
         {
             var g = new TestGame();
+            g.FillDeck(1, 3);
+            g.P0.Hero.Health = 0;
+            g.P1.Hero.Health = 0;
+
+            g.EndTurn();
+
+            Assert.That(g.State.Phase, Is.EqualTo(GamePhase.Finished));
+            Assert.That(g.State.WinnerIndex, Is.Null);
+        }
+
+        [Test]
+        public void HeroDeath_EndsGameImmediately_RemainingChainIsDropped()
+        {
+            var g = new TestGame { AutoDecide = false };
             g.P0.Hero.Health = 2;
             g.P1.Hero.Health = 2;
             var spell = g.AddToHand(0, TestCards.Spell("c_boom", 0,
@@ -140,9 +154,13 @@ namespace TCG.Tests.Core
                 TestCards.Effect(TriggerType.OnEnter, TargetType.EnemyHero, ActionType.Damage, 5)));
 
             g.Play(spell);
+            var options = g.State.Decision.Options;
+            // 체인 1 = 상대 영웅 피해, 체인 2 = 내 영웅 피해 → 체인 2가 먼저 처리되어 내가 진다.
+            g.Apply(new ChooseTriggersCommand(0, new[] { options[1], options[0] }));
 
             Assert.That(g.State.Phase, Is.EqualTo(GamePhase.Finished));
-            Assert.That(g.State.WinnerIndex, Is.Null);
+            Assert.That(g.State.WinnerIndex, Is.EqualTo(1));
+            Assert.That(g.P1.Hero.Health, Is.EqualTo(2));
         }
     }
 }

@@ -18,6 +18,8 @@ namespace TCG.Tests.Core
         public GameState State { get; }
         public GameEngine Engine { get; } = new GameEngine();
         public List<GameEvent> LastEvents { get; private set; } = new List<GameEvent>();
+        /// <summary>true면 선택 요청에 기본값으로 자동 응답한다 (제시된 순서 그대로 전부 발동, 대응은 패스).</summary>
+        public bool AutoDecide { get; set; } = true;
 
         public TestGame(RuleConfig rules = null, int seed = 1)
         {
@@ -65,7 +67,19 @@ namespace TCG.Tests.Core
         public List<GameEvent> Apply(Command command)
         {
             LastEvents = Engine.Apply(State, command).ToList();
+            for (int guard = 0; AutoDecide && State.Decision != null; guard++)
+            {
+                Assert.That(guard, Is.LessThan(10000), "선택 요청이 끝나지 않음");
+                LastEvents.AddRange(Engine.Apply(State, DefaultAnswer(State.Decision)));
+            }
             return LastEvents;
+        }
+
+        public static Command DefaultAnswer(PendingDecision decision)
+        {
+            if (decision.Type == DecisionType.ChooseTriggers)
+                return new ChooseTriggersCommand(decision.PlayerIndex, decision.Options.ToList());
+            return new PassChainCommand(decision.PlayerIndex);
         }
 
         public List<GameEvent> Play(Entity card, int? target = null, int? position = null) =>

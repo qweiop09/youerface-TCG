@@ -65,9 +65,12 @@ namespace TCG.Core.Rules
                     player.Exile.TryAdd(bonus);
             }
 
-            ctx.ResolveAll();
+            ctx.Settle();
             if (state.Phase == GamePhase.InProgress)
-                StartTurn(ctx, first);
+            {
+                ctx.StartTurn(first);
+                ctx.Advance();
+            }
             return ctx.Events;
         }
 
@@ -79,6 +82,10 @@ namespace TCG.Core.Rules
                 return ValidationResult.Fail("잘못된 요청입니다.");
             if (state.Phase != GamePhase.InProgress)
                 return ValidationResult.Fail("대전이 진행 중이 아닙니다.");
+
+            if (state.Decision != null)
+                return ValidateDecision(state, command);
+
             if (command.PlayerIndex != state.ActivePlayerIndex)
                 return ValidationResult.Fail("내 턴이 아닙니다.");
 
@@ -87,8 +94,73 @@ namespace TCG.Core.Rules
                 case PlayCardCommand play: return ValidatePlay(state, play);
                 case AttackCommand attack: return ValidateAttack(state, attack);
                 case EndTurnCommand _: return ValidationResult.Ok;
+                case ChooseTriggersCommand _:
+                case PassChainCommand _:
+                    return ValidationResult.Fail("선택할 것이 없습니다.");
                 default: return ValidationResult.Fail("알 수 없는 명령입니다.");
             }
+        }
+
+        /// <summary>선택 대기 중에는 그 선택에 대한 답만 받는다.</summary>
+        static ValidationResult ValidateDecision(GameState state, Command command)
+        {
+            var decision = state.Decision;
+            if (command.PlayerIndex != decision.PlayerIndex)
+                return ValidationResult.Fail("상대의 선택을 기다리는 중입니다.");
+
+            switch (command)
+            {
+                case ChooseTriggersCommand choose when decision.Type == DecisionType.ChooseTriggers:
+                    return ValidateTriggerChoice(state, decision, choose);
+                case PassChainCommand _ when decision.Type == DecisionType.ChainResponse:
+                    return ValidationResult.Ok;
+                default:
+                    return ValidationResult.Fail("먼저 선택을 끝내야 합니다.");
+            }
+        }
+
+        /// <summary>순서 목록은 선택지 안에서 중복 없이, 강제 효과는 모두 포함해야 한다.</summary>
+        static ValidationResult ValidateTriggerChoice(GameState state, PendingDecision decision, ChooseTriggersCommand choose)
+        {
+            var seen = new List<int>();
+            for (int i = 0; i < choose.TriggerIds.Count; i++)
+            {
+                int id = choose.TriggerIds[i];
+                if (seen.Contains(id))
+                    return ValidationResult.Fail("같은 효과를 두 번 고를 수 없습니다.");
+                if (!Contains(decision.Options, id))
+                    return ValidationResult.Fail("고를 수 없는 효과입니다.");
+                seen.Add(id);
+            }
+
+            for (int i = 0; i < decision.Options.Count; i++)
+            {
+                int id = decision.Options[i];
+                var trigger = FindPending(state, id);
+                if (trigger != null && !trigger.IsOptional && !seen.Contains(id))
+                    return ValidationResult.Fail("강제 효과는 모두 체인에 올려야 합니다.");
+            }
+            return ValidationResult.Ok;
+        }
+
+        static bool Contains(IReadOnlyList<int> list, int value)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] == value)
+                    return true;
+            }
+            return false;
+        }
+
+        static PendingTrigger FindPending(GameState state, int id)
+        {
+            for (int i = 0; i < state.PendingTriggers.Count; i++)
+            {
+                if (state.PendingTriggers[i].Id == id)
+                    return state.PendingTriggers[i];
+            }
+            return null;
         }
 
         ValidationResult ValidatePlay(GameState state, PlayCardCommand cmd)
@@ -200,7 +272,10 @@ namespace TCG.Core.Rules
 
         // ------------------------------------------------------------------ 적용
 
-        /// <summary>명령을 적용하고 일어난 일을 반환한다. 검증에 실패하면 예외.</summary>
+        /// <summary>
+        /// 명령을 적용하고 일어난 일을 반환한다. 검증에 실패하면 예외.
+        /// 처리 도중 플레이어 선택이 필요하면 거기서 멈추고, <see cref="GameState.Decision"/>에 무엇을 기다리는지 남긴다.
+        /// </summary>
         public IReadOnlyList<GameEvent> Apply(GameState state, Command command)
         {
             var validation = Validate(state, command);
@@ -210,16 +285,34 @@ namespace TCG.Core.Rules
             var ctx = new RuleContext(state, Registry);
             switch (command)
             {
-                case PlayCardCommand play: ApplyPlay(ctx, play); break;
-                case AttackCommand attack: ApplyAttack(ctx, attack); break;
-                case EndTurnCommand _: ApplyEndTurn(ctx); break;
+                case PlayCardCommand play:
+                    state.ResolutionCount = 0;
+                    ApplyPlay(ctx, play);
+                    break;
+                case AttackCommand attack:
+                    state.ResolutionCount = 0;
+                    ApplyAttack(ctx, attack);
+                    break;
+                case EndTurnCommand _:
+                    state.ResolutionCount = 0;
+                    ctx.CollectBoardTriggers(state.ActivePlayerIndex, TriggerType.OnTurnEnd);
+                    state.PendingActions.Add(new PendingAction(PendingActionType.FinishEndTurn, state.ActivePlayerIndex));
+                    break;
+                case ChooseTriggersCommand choose:
+                    ctx.ApplyTriggerChoice(choose.PlayerIndex, choose.TriggerIds);
+                    break;
+                case PassChainCommand _:
+                    ctx.PassChain();
+                    break;
             }
+
+            ctx.Advance();
             return ctx.Events;
         }
 
         /// <summary>
-        /// 카드 내기 순서: 코스트 지불 → 손패에서 제거 → 내 보드 카드들의 "카드 사용 시" 발동 대기
-        /// → 카드 배치(필드는 기존 필드 교체·퇴장 발동 먼저) 및 "등장 시" 발동 대기 → 처리.
+        /// 카드 내기: 코스트 지불 → 손패에서 제거 → 즉시 배치(소환 연출) / 필드는 기존 필드 퇴장 먼저 / 주문은 바로 묘지(일회성은 소멸).
+        /// 이 행동으로 발동한 효과(내 보드의 "카드 사용 시", 낸 카드의 "등장 시", 교체된 필드의 "퇴장 시")는 체인으로 처리된다.
         /// </summary>
         void ApplyPlay(RuleContext ctx, PlayCardCommand cmd)
         {
@@ -232,7 +325,7 @@ namespace TCG.Core.Rules
             player.Hand.Remove(card);
             ctx.Emit(new CardPlayedEvent(player.Index, card.Id));
 
-            ctx.QueueBoardTrigger(player.Index, TriggerType.OnCardPlayed);
+            ctx.CollectBoardTriggers(player.Index, TriggerType.OnCardPlayed);
 
             switch (card.Type)
             {
@@ -251,19 +344,13 @@ namespace TCG.Core.Rules
                 case CardType.Spell:
                     var destination = card.HasKeyword(Keyword.Exhaust) ? player.Exile : player.Graveyard;
                     destination.TryAdd(card);
-                    ctx.QueueCast(card, cmd.TargetId);
+                    ctx.Emit(new SpellCastEvent(card.Id, destination.Type));
+                    ctx.CollectTriggers(card, TriggerType.OnEnter, cmd.TargetId, isCast: true);
                     break;
             }
-
-            ctx.ResolveAll();
-            if (card.Type == CardType.Spell)
-                ctx.Emit(new SpellFinishedEvent(card.Id, card.Location ?? ZoneType.Graveyard));
         }
 
-        /// <summary>
-        /// 공격 순서: "공격 시" 발동 처리 → (공격자·대상이 살아 있으면) 서로 공격력만큼 동시에 피해 → 처리.
-        /// 영웅은 반격하지 않는다.
-        /// </summary>
+        /// <summary>공격: 공격 선언 → "공격 시" 체인 → (체인이 끝난 뒤) 전투 피해.</summary>
         void ApplyAttack(RuleContext ctx, AttackCommand cmd)
         {
             var state = ctx.State;
@@ -271,65 +358,8 @@ namespace TCG.Core.Rules
             attacker.AttacksThisTurn++;
             ctx.Emit(new AttackEvent(attacker.Id, cmd.TargetId));
 
-            ctx.QueueTrigger(attacker, TriggerType.OnAttack);
-            ctx.ResolveAll();
-            if (state.Phase != GamePhase.InProgress || !attacker.IsOnBoard)
-                return;
-
-            bool targetIsHero = state.FindHero(cmd.TargetId) != null;
-            var targetMinion = targetIsHero ? null : ctx.FindBoardEntity(cmd.TargetId);
-            if (!targetIsHero && targetMinion == null)
-                return;
-
-            int attackerDamage = attacker.Attack ?? 0;
-            int counterDamage = targetMinion?.Attack ?? 0;
-            ctx.DealDamage(attacker.Id, cmd.TargetId, attackerDamage);
-            if (targetMinion != null)
-                ctx.DealDamage(targetMinion.Id, attacker.Id, counterDamage);
-            ctx.ResolveAll();
-        }
-
-        void ApplyEndTurn(RuleContext ctx)
-        {
-            var state = ctx.State;
-            int current = state.ActivePlayerIndex;
-            ctx.QueueBoardTrigger(current, TriggerType.OnTurnEnd);
-            ctx.ResolveAll();
-            if (state.Phase != GamePhase.InProgress)
-                return;
-
-            ctx.Emit(new TurnEndedEvent(current));
-            StartTurn(ctx, 1 - current);
-        }
-
-        /// <summary>턴 시작: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 발동.</summary>
-        void StartTurn(RuleContext ctx, int playerIndex)
-        {
-            var state = ctx.State;
-            var rules = state.Rules;
-            var player = state.GetPlayer(playerIndex);
-
-            state.ActivePlayerIndex = playerIndex;
-            state.TurnNumber++;
-
-            int nextMax = player.TurnsTaken == 0 ? rules.StartingMaxCost : player.MaxCost + rules.MaxCostGainPerTurn;
-            player.MaxCost = Math.Min(nextMax, rules.MaxCostLimit);
-            player.AvailableCost = player.MaxCost;
-            player.TurnsTaken++;
-
-            var minions = player.Minions.Entities;
-            for (int i = 0; i < minions.Count; i++)
-            {
-                minions[i].PlayedThisTurn = false;
-                minions[i].AttacksThisTurn = 0;
-            }
-
-            ctx.Emit(new TurnStartedEvent(playerIndex, state.TurnNumber));
-            ctx.Emit(new CostChangedEvent(playerIndex, player.MaxCost, player.AvailableCost));
-
-            ctx.DrawCard(playerIndex);
-            ctx.QueueBoardTrigger(playerIndex, TriggerType.OnTurnStart);
-            ctx.ResolveAll();
+            ctx.CollectTriggers(attacker, TriggerType.OnAttack);
+            state.PendingActions.Add(new PendingAction(PendingActionType.CombatDamage, attacker.Id, cmd.TargetId));
         }
     }
 }

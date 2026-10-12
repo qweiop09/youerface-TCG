@@ -31,6 +31,15 @@ namespace TCG.Tests.Core
         /// <summary>단순 봇: 낼 수 있는 카드를 앞에서부터 내고, 가능한 공격을 다 한 뒤 턴을 넘긴다.</summary>
         static Command NextCommand(GameEngine engine, GameState state)
         {
+            if (state.Decision != null)
+            {
+                // 순서 선택은 시드에 따라 뒤집어서 여러 순서를 섞어 본다.
+                var d = state.Decision;
+                if (d.Type == DecisionType.ChooseTriggers && state.TurnNumber % 2 == 0)
+                    return new ChooseTriggersCommand(d.PlayerIndex, d.Options.Reverse().ToList());
+                return TestGame.DefaultAnswer(d);
+            }
+
             int p = state.ActivePlayerIndex;
             var player = state.GetPlayer(p);
             var opponent = state.GetOpponent(p);

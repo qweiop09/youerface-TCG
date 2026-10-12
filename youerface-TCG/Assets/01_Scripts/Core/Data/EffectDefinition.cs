@@ -6,6 +6,8 @@ namespace TCG.Core.Data
     public sealed class EffectDefinition
     {
         public TriggerDefinition Trigger { get; set; } = new TriggerDefinition();
+        /// <summary>강제/선택 발동. 기본은 강제.</summary>
+        public EffectActivation Activation { get; set; } = EffectActivation.Mandatory;
         public List<ConditionDefinition> Conditions { get; set; } = new List<ConditionDefinition>();
         public TargetDefinition Target { get; set; } = new TargetDefinition();
         public ActionDefinition Action { get; set; } = new ActionDefinition();

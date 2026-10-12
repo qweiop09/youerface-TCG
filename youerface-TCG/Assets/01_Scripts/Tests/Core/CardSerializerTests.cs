@@ -58,6 +58,7 @@ namespace TCG.Tests.Core
             Assert.That(summon.Type, Is.EqualTo(CardType.Summon));
             Assert.That(summon.Usage, Is.EqualTo(2));
             Assert.That(summon.OnDuplicate, Is.EqualTo(SummonDuplicateMode.AddNew));
+            Assert.That(effect.Activation, Is.EqualTo(EffectActivation.Mandatory));
             Assert.That(summon.Effects[0].Trigger.Type, Is.EqualTo(TriggerType.OnTurnEnd));
         }
 
@@ -138,6 +139,26 @@ namespace TCG.Tests.Core
         {
             Assert.Throws<CardSerializationException>(() =>
                 CardSerializer.Deserialize(@"{ ""schemaVersion"": 1, ""type"": ""Hero"" }"));
+        }
+
+        [Test]
+        public void RoundTrip_OptionalActivation()
+        {
+            var card = TestCards.FireSpirit();
+            card.Effects[0].Activation = EffectActivation.Optional;
+
+            var json = JObject.Parse(CardSerializer.Serialize(card));
+            Assert.That(json["effects"][0]["activation"].Value<string>(), Is.EqualTo("Optional"));
+            Assert.That(CardSerializer.Deserialize(json.ToString()).Effects[0].Activation, Is.EqualTo(EffectActivation.Optional));
+        }
+
+        [Test]
+        public void Deserialize_MissingActivation_DefaultsToMandatory()
+        {
+            const string json = @"{ ""schemaVersion"": 1, ""type"": ""Spell"", ""effects"": [ {
+                ""trigger"": { ""type"": ""OnEnter"" }, ""target"": { ""type"": ""EnemyHero"" },
+                ""action"": { ""type"": ""Damage"", ""amount"": 1 } } ] }";
+            Assert.That(CardSerializer.Deserialize(json).Effects[0].Activation, Is.EqualTo(EffectActivation.Mandatory));
         }
     }
 }

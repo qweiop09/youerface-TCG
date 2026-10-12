@@ -27,6 +27,8 @@ namespace TCG.Core.Rules
             Add(ref h, unchecked((int)rng.S2));
             Add(ref h, unchecked((int)rng.S3));
 
+            AddChain(ref h, state);
+
             for (int p = 0; p < GameState.PlayerCount; p++)
             {
                 var player = state.GetPlayer(p);
@@ -48,6 +50,60 @@ namespace TCG.Core.Rules
                 }
             }
             return h;
+        }
+
+        static void AddChain(ref ulong h, GameState state)
+        {
+            Add(ref h, state.ChainClosed ? 1 : 0);
+            Add(ref h, state.ResponsePasses);
+            Add(ref h, state.NextTriggerId);
+            Add(ref h, state.ResolutionCount);
+
+            Add(ref h, state.Chain.Count);
+            for (int i = 0; i < state.Chain.Count; i++)
+            {
+                var link = state.Chain[i];
+                Add(ref h, link.Number);
+                Add(ref h, link.SourceId);
+                Add(ref h, link.ControllerIndex);
+                Add(ref h, link.EffectIndex);
+                Add(ref h, (int)link.Trigger);
+                Add(ref h, link.ChosenTargetId ?? -1);
+                Add(ref h, link.IsCast ? 1 : 0);
+                Add(ref h, link.Negated ? 1 : 0);
+            }
+
+            Add(ref h, state.PendingTriggers.Count);
+            for (int i = 0; i < state.PendingTriggers.Count; i++)
+            {
+                var t = state.PendingTriggers[i];
+                Add(ref h, t.Id);
+                Add(ref h, t.SourceId);
+                Add(ref h, t.ControllerIndex);
+                Add(ref h, t.EffectIndex);
+                Add(ref h, (int)t.Trigger);
+                Add(ref h, t.ChosenTargetId ?? -1);
+                Add(ref h, t.IsCast ? 1 : 0);
+                Add(ref h, t.IsOptional ? 1 : 0);
+            }
+
+            var decision = state.Decision;
+            Add(ref h, decision == null ? -1 : (int)decision.Type);
+            if (decision != null)
+            {
+                Add(ref h, decision.PlayerIndex);
+                Add(ref h, decision.Options.Count);
+                for (int i = 0; i < decision.Options.Count; i++)
+                    Add(ref h, decision.Options[i]);
+            }
+
+            Add(ref h, state.PendingActions.Count);
+            for (int i = 0; i < state.PendingActions.Count; i++)
+            {
+                Add(ref h, (int)state.PendingActions[i].Type);
+                Add(ref h, state.PendingActions[i].A);
+                Add(ref h, state.PendingActions[i].B);
+            }
         }
 
         static void AddEntity(ref ulong h, Entity e)

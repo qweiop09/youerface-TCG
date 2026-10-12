@@ -8,29 +8,21 @@ using TCG.Core.State;
 namespace TCG.Core.Rules
 {
     /// <summary>
-    /// 명령 1개를 처리하는 동안의 작업 공간. 상태를 바꾸는 기본 연산, 효과 발동 대기열, 상시 효과·사망·승패 처리를 담당한다.
+    /// 명령 1개를 처리하는 동안의 작업 공간. 상태를 바꾸는 기본 연산과 유희왕식 체인 처리(GameDesign §7.2)를 담당한다.
     /// 효과 블록은 상태를 직접 바꾸지 않고 여기의 기본 연산을 호출한다.
     ///
-    /// 처리 순서 (GameDesign/Architecture에 문서화):
-    /// 1. 명령이 일으킨 효과 발동은 대기열(FIFO)에 쌓이고 하나씩 처리된다.
-    /// 2. 같은 시점에 여러 카드가 발동하면: 해당 플레이어의 보드 영역 순서(기물→필드→동료→소환물), 영역 안에서는 왼쪽부터.
-    /// 3. 한 카드 안에서는 카드 효과 목록 순서, 그다음 키워드 효과 순서.
-    /// 4. 발동 1건을 처리할 때마다 상시 효과 재계산 → 사망 처리(현재 턴 플레이어 쪽부터, 왼쪽부터) → 승패 판정.
+    /// 체인 처리 (<see cref="Advance"/>):
+    /// 1. 행동이 일으킨 발동은 대기 효과(PendingTriggers)로 모인다.
+    /// 2. 체인 만들기: 현재 턴 플레이어의 대기 효과부터, 그다음 상대 것. 같은 플레이어 효과가 둘 이상이거나
+    ///    선택 효과가 있으면 플레이어에게 순서·발동 여부를 묻는다(ChooseTriggers).
+    /// 3. 대응 기회: 상대 → 발동자 순. 대응할 효과가 없으면 자동 패스. 둘 다 패스하면 체인이 닫힌다.
+    /// 4. 마지막 링크부터 처리. 처리 중 체력 0 이하는 즉시 사망. 처리 중 새로 발동한 효과는 다음 체인으로.
+    /// 5. 체인도 대기 효과도 없으면 이어서 할 행동(전투 피해, 턴 넘기기)을 실행.
+    /// 매 단계마다 상시 효과 재계산 → 사망 → 승패 판정.
     /// </summary>
     public sealed class RuleContext
     {
-        sealed class PendingStep
-        {
-            public Entity Source;
-            public TriggerType Trigger;
-            public int? ChosenTargetId;
-            /// <summary>주문 발동: 보드 위에 없어도 처리한다.</summary>
-            public bool IsCast;
-        }
-
         readonly List<GameEvent> _events = new List<GameEvent>();
-        readonly Queue<PendingStep> _queue = new Queue<PendingStep>();
-        int _resolutions;
 
         public GameState State { get; }
         public EffectRegistry Registry { get; }
@@ -154,7 +146,10 @@ namespace TCG.Core.Rules
                 return;
             e.Damage += amount;
             Emit(new DamageDealtEvent(sourceId, targetId, amount));
-            QueueTrigger(e, TriggerType.OnDamaged);
+            CollectTriggers(e, TriggerType.OnDamaged);
+            // 체력이 0 이하가 되면 그 즉시 사망한다 (GameDesign §7.2).
+            if (e.IsDead)
+                RemoveFromBoard(e, ExitReason.Died);
         }
 
         public void Heal(int targetId, int amount)
@@ -213,7 +208,7 @@ namespace TCG.Core.Rules
             }
         }
 
-        /// <summary>보드에 놓고 "등장 시" 발동을 대기열에 넣는다. 영역이 가득 차면 false.</summary>
+        /// <summary>보드에 놓고 "등장 시" 발동을 모은다. 영역이 가득 차면 false.</summary>
         public bool TryPlaceOnBoard(Entity e, int? index, int? chosenTargetId)
         {
             var zoneType = BoardZoneFor(e.Type);
@@ -224,11 +219,11 @@ namespace TCG.Core.Rules
             int at = index.HasValue ? Math.Max(0, Math.Min(index.Value, zone.Count)) : zone.Count;
             zone.TryInsert(e, at);
             Emit(new CardEnteredEvent(e.Id, zoneType, at));
-            QueueTrigger(e, TriggerType.OnEnter, chosenTargetId);
+            CollectTriggers(e, TriggerType.OnEnter, chosenTargetId);
             return true;
         }
 
-        /// <summary>보드에서 퇴장. 소환물은 완전히 제거되고, 나머지는 묘지로 간다. "퇴장 시" 발동을 대기열에 넣는다.</summary>
+        /// <summary>보드에서 퇴장. 소환물은 완전히 제거되고, 나머지는 묘지로 간다. "퇴장 시" 발동을 모은다.</summary>
         public void RemoveFromBoard(Entity e, ExitReason reason)
         {
             if (!e.IsOnBoard)
@@ -240,7 +235,7 @@ namespace TCG.Core.Rules
             Emit(new CardExitedEvent(e.Id, from, reason));
             if (e.Type != CardType.Summon)
                 player.Graveyard.TryAdd(e);
-            QueueTrigger(e, TriggerType.OnExit);
+            CollectTriggers(e, TriggerType.OnExit);
         }
 
         /// <summary>
@@ -275,89 +270,280 @@ namespace TCG.Core.Rules
             TryPlaceOnBoard(summon, null, null);
         }
 
-        // ------------------------------------------------------------------ 발동 대기열
+        // ------------------------------------------------------------------ 발동 수집
 
-        public void QueueTrigger(Entity source, TriggerType trigger, int? chosenTargetId = null)
+        /// <summary>카드의 효과 중 trigger에 해당하고 조건을 만족하는 것을 대기 효과로 모은다.</summary>
+        public void CollectTriggers(Entity source, TriggerType trigger, int? chosenTargetId = null, bool isCast = false)
         {
-            _queue.Enqueue(new PendingStep { Source = source, Trigger = trigger, ChosenTargetId = chosenTargetId });
-        }
-
-        /// <summary>주문 발동(등장 시 효과)을 대기열에 넣는다.</summary>
-        public void QueueCast(Entity spell, int? chosenTargetId)
-        {
-            _queue.Enqueue(new PendingStep { Source = spell, Trigger = TriggerType.OnEnter, ChosenTargetId = chosenTargetId, IsCast = true });
-        }
-
-        /// <summary>플레이어 보드의 모든 카드에 같은 시점 발동을 대기열에 넣는다 (보드 영역 순서, 왼쪽부터).</summary>
-        public void QueueBoardTrigger(int playerIndex, TriggerType trigger)
-        {
-            var zones = State.GetPlayer(playerIndex).BoardZones;
-            for (int z = 0; z < zones.Count; z++)
-            {
-                var entities = zones[z].Entities;
-                for (int i = 0; i < entities.Count; i++)
-                    QueueTrigger(entities[i], trigger);
-            }
-        }
-
-        /// <summary>대기열이 빌 때까지 처리한다. 매 단계마다 상시 효과 재계산 → 사망 → 승패 판정.</summary>
-        public void ResolveAll()
-        {
-            while (true)
-            {
-                RecalculateAuras();
-                if (ProcessDeaths())
-                    continue;
-
-                CheckGameOver();
-                if (State.Phase == GamePhase.Finished)
-                {
-                    _queue.Clear();
-                    return;
-                }
-
-                if (_queue.Count == 0)
-                    return;
-
-                if (++_resolutions > Config.MaxTriggerResolutionsPerAction)
-                {
-                    _queue.Clear();
-                    Emit(new ResolutionLimitReachedEvent());
-                    return;
-                }
-
-                ResolveStep(_queue.Dequeue());
-            }
-        }
-
-        void ResolveStep(PendingStep step)
-        {
-            var source = step.Source;
-            bool mustBeOnBoard = step.Trigger != TriggerType.OnExit && !step.IsCast;
+            bool mustBeOnBoard = trigger != TriggerType.OnExit && !isCast;
             if (mustBeOnBoard && !source.IsOnBoard)
                 return;
 
             var effects = new List<EffectDefinition>();
             CollectEffects(source, effects);
-
-            bool activated = false;
             for (int i = 0; i < effects.Count; i++)
             {
                 var effect = effects[i];
-                if (effect?.Trigger == null || effect.Trigger.Type != step.Trigger || effect.Action == null)
+                if (effect?.Trigger == null || effect.Trigger.Type != trigger || effect.Action == null)
+                    continue;
+                if (!ConditionsMet(new EffectContext(this, source, effect, i, chosenTargetId)))
                     continue;
 
-                var context = new EffectContext(this, source, effect, i, step.ChosenTargetId);
-                if (!ConditionsMet(context))
+                State.PendingTriggers.Add(new PendingTrigger
+                {
+                    Id = State.NextTriggerId++,
+                    SourceId = source.Id,
+                    ControllerIndex = source.OwnerIndex,
+                    EffectIndex = i,
+                    Trigger = trigger,
+                    ChosenTargetId = chosenTargetId,
+                    IsCast = isCast,
+                    IsOptional = effect.Activation == EffectActivation.Optional,
+                });
+            }
+        }
+
+        /// <summary>플레이어 보드의 모든 카드에서 같은 시점 발동을 모은다 (보드 영역 순서, 왼쪽부터).</summary>
+        public void CollectBoardTriggers(int playerIndex, TriggerType trigger)
+        {
+            var zones = State.GetPlayer(playerIndex).BoardZones;
+            for (int z = 0; z < zones.Count; z++)
+            {
+                var entities = new List<Entity>(zones[z].Entities);
+                for (int i = 0; i < entities.Count; i++)
+                    CollectTriggers(entities[i], trigger);
+            }
+        }
+
+        // ------------------------------------------------------------------ 체인 진행
+
+        /// <summary>
+        /// 선택을 기다리거나 할 일이 없을 때까지 진행한다.
+        /// </summary>
+        public void Advance()
+        {
+            while (true)
+            {
+                Settle();
+                if (State.Phase != GamePhase.InProgress)
+                {
+                    ClearChainState();
+                    State.PendingActions.Clear();
+                    return;
+                }
+                if (State.Decision != null)
+                    return;
+
+                if (State.ChainClosed)
+                {
+                    ResolveNextLink();
+                    continue;
+                }
+                if (State.PendingTriggers.Count > 0)
+                {
+                    if (!PlacePendingTriggers())
+                        return;
+                    continue;
+                }
+                if (State.Chain.Count > 0)
+                {
+                    if (!RunResponseWindow())
+                        return;
+                    continue;
+                }
+                if (State.PendingActions.Count > 0)
+                {
+                    var action = State.PendingActions[0];
+                    State.PendingActions.RemoveAt(0);
+                    ExecutePendingAction(action);
+                    continue;
+                }
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 대기 효과를 체인에 올린다. 현재 턴 플레이어 먼저. 선택이 필요하면 Decision을 걸고 false.
+        /// </summary>
+        bool PlacePendingTriggers()
+        {
+            for (int k = 0; k < GameState.PlayerCount; k++)
+            {
+                int player = (State.ActivePlayerIndex + k) % GameState.PlayerCount;
+                var mine = PendingOf(player);
+                if (mine.Count == 0)
                     continue;
 
-                activated = true;
-                Execute(context, step.Trigger);
+                if (mine.Count == 1 && !mine[0].IsOptional)
+                {
+                    AddLink(mine[0]);
+                    State.PendingTriggers.Remove(mine[0]);
+                    k--; // 같은 플레이어를 다시 확인 (남은 것 없음)
+                    continue;
+                }
+
+                var options = new List<int>();
+                for (int i = 0; i < mine.Count; i++)
+                    options.Add(mine[i].Id);
+                State.Decision = new PendingDecision(DecisionType.ChooseTriggers, player, options);
+                Emit(new DecisionRequestedEvent(player, DecisionType.ChooseTriggers, options));
+                return false;
             }
 
-            // 반복 발동(턴 시작/종료, 피격 등)은 사용 횟수를 1 소모한다. 등장·퇴장·상시는 소모하지 않는다.
-            if (activated && ConsumesUsage(step.Trigger) && source.Usage.HasValue && source.IsOnBoard)
+            State.ResponsePasses = 0;
+            return true;
+        }
+
+        List<PendingTrigger> PendingOf(int player)
+        {
+            var result = new List<PendingTrigger>();
+            for (int i = 0; i < State.PendingTriggers.Count; i++)
+            {
+                if (State.PendingTriggers[i].ControllerIndex == player)
+                    result.Add(State.PendingTriggers[i]);
+            }
+            return result;
+        }
+
+        void AddLink(PendingTrigger trigger)
+        {
+            var link = new ChainLink
+            {
+                Number = State.Chain.Count + 1,
+                SourceId = trigger.SourceId,
+                ControllerIndex = trigger.ControllerIndex,
+                EffectIndex = trigger.EffectIndex,
+                Trigger = trigger.Trigger,
+                ChosenTargetId = trigger.ChosenTargetId,
+                IsCast = trigger.IsCast,
+            };
+            State.Chain.Add(link);
+
+            var effect = EffectOf(link.SourceId, link.EffectIndex);
+            Emit(new EffectActivatedEvent(link.Number, link.SourceId, link.EffectIndex, link.ControllerIndex,
+                link.Trigger, effect?.Action?.Type ?? default(ActionType)));
+        }
+
+        /// <summary>
+        /// ChooseTriggers 선택 적용: 고른 순서대로 체인에 올리고, 고르지 않은 선택 효과는 버린다.
+        /// 검증은 <see cref="GameEngine.Validate"/>에서 끝났다고 가정한다.
+        /// </summary>
+        public void ApplyTriggerChoice(int player, IReadOnlyList<int> orderedTriggerIds)
+        {
+            for (int i = 0; i < orderedTriggerIds.Count; i++)
+            {
+                var trigger = FindPending(orderedTriggerIds[i]);
+                if (trigger != null)
+                    AddLink(trigger);
+            }
+            State.PendingTriggers.RemoveAll(t => t.ControllerIndex == player);
+            State.Decision = null;
+        }
+
+        public PendingTrigger FindPending(int triggerId)
+        {
+            for (int i = 0; i < State.PendingTriggers.Count; i++)
+            {
+                if (State.PendingTriggers[i].Id == triggerId)
+                    return State.PendingTriggers[i];
+            }
+            return null;
+        }
+
+        /// <summary>대응 기회: 상대 → 발동자. 대응할 효과가 없으면 자동 패스. 선택이 필요하면 false.</summary>
+        bool RunResponseWindow()
+        {
+            while (State.ResponsePasses < 2)
+            {
+                int lastController = State.Chain[State.Chain.Count - 1].ControllerIndex;
+                int responder = State.ResponsePasses == 0 ? 1 - lastController : lastController;
+                if (HasResponses(responder))
+                {
+                    State.Decision = new PendingDecision(DecisionType.ChainResponse, responder, null);
+                    Emit(new DecisionRequestedEvent(responder, DecisionType.ChainResponse, State.Decision.Options));
+                    return false;
+                }
+                State.ResponsePasses++;
+            }
+
+            State.ChainClosed = true;
+            return true;
+        }
+
+        /// <summary>
+        /// 체인에 대응해 발동할 수 있는 효과가 있는가.
+        /// 대응용 블록(상대 카드 사용·효과 발동에 대응, 무효화)은 아직 없으므로 항상 false (GameDesign §7.2).
+        /// </summary>
+        public bool HasResponses(int playerIndex) => false;
+
+        /// <summary>대응 기회에서 패스.</summary>
+        public void PassChain()
+        {
+            State.Decision = null;
+            State.ResponsePasses++;
+        }
+
+        void ResolveNextLink()
+        {
+            if (State.Chain.Count == 0)
+            {
+                State.ChainClosed = false;
+                State.ResponsePasses = 0;
+                Emit(new ChainEndedEvent());
+                return;
+            }
+
+            if (++State.ResolutionCount > Config.MaxTriggerResolutionsPerAction)
+            {
+                ClearChainState();
+                Emit(new ResolutionLimitReachedEvent());
+                return;
+            }
+
+            var link = State.Chain[State.Chain.Count - 1];
+            State.Chain.RemoveAt(State.Chain.Count - 1);
+            ResolveLink(link);
+        }
+
+        void ResolveLink(ChainLink link)
+        {
+            var source = State.GetEntity(link.SourceId);
+            var effect = EffectOf(link.SourceId, link.EffectIndex);
+            if (source == null || effect == null)
+                return;
+
+            if (link.Negated)
+            {
+                Emit(new EffectNegatedEvent(link.Number, link.SourceId));
+                return;
+            }
+
+            Emit(new EffectResolvingEvent(link.Number, link.SourceId, link.EffectIndex, effect.Action.Type));
+            var context = new EffectContext(this, source, effect, link.EffectIndex, link.ChosenTargetId);
+            Execute(context);
+
+            // 반복 발동(턴 시작/종료, 피격, 공격, 카드 사용 시)은 처리될 때마다 사용 횟수를 1 소모한다.
+            if (ConsumesUsage(link.Trigger) && source.Usage.HasValue && source.IsOnBoard)
                 ModifyUsage(source, -1);
+        }
+
+        EffectDefinition EffectOf(int sourceId, int effectIndex)
+        {
+            var source = State.GetEntity(sourceId);
+            if (source == null)
+                return null;
+            var effects = new List<EffectDefinition>();
+            CollectEffects(source, effects);
+            return effectIndex >= 0 && effectIndex < effects.Count ? effects[effectIndex] : null;
+        }
+
+        void ClearChainState()
+        {
+            State.Chain.Clear();
+            State.PendingTriggers.Clear();
+            State.ChainClosed = false;
+            State.ResponsePasses = 0;
+            State.Decision = null;
         }
 
         static bool ConsumesUsage(TriggerType trigger)
@@ -378,15 +564,76 @@ namespace TCG.Core.Rules
             return true;
         }
 
-        void Execute(EffectContext context, TriggerType trigger)
+        void Execute(EffectContext context)
         {
             var action = Registry.GetAction(context.Effect.Action.Type);
             var targets = new List<int>();
             if (action.UsesTargets && context.Effect.Target != null)
                 Registry.GetTarget(context.Effect.Target.Type).Select(context, context.Effect.Target, targets);
-
-            Emit(new EffectTriggeredEvent(context.Source.Id, trigger, context.Effect.Action.Type));
             action.Execute(context, targets);
+        }
+
+        // ------------------------------------------------------------------ 여러 단계 행동
+
+        void ExecutePendingAction(PendingAction action)
+        {
+            switch (action.Type)
+            {
+                case PendingActionType.CombatDamage:
+                    CombatDamage(action.A, action.B);
+                    break;
+                case PendingActionType.FinishEndTurn:
+                    Emit(new TurnEndedEvent(action.A));
+                    StartTurn(1 - action.A);
+                    break;
+            }
+        }
+
+        /// <summary>공격자와 대상이 서로 공격력만큼 동시에 피해 (영웅은 반격 없음).</summary>
+        void CombatDamage(int attackerId, int targetId)
+        {
+            var attacker = FindBoardEntity(attackerId);
+            if (attacker == null)
+                return;
+
+            bool targetIsHero = State.FindHero(targetId) != null;
+            var targetMinion = targetIsHero ? null : FindBoardEntity(targetId);
+            if (!targetIsHero && targetMinion == null)
+                return;
+
+            int attackerDamage = attacker.Attack ?? 0;
+            int counterDamage = targetMinion?.Attack ?? 0;
+            DealDamage(attacker.Id, targetId, attackerDamage);
+            if (targetMinion != null)
+                DealDamage(targetMinion.Id, attacker.Id, counterDamage);
+        }
+
+        /// <summary>턴 시작: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 발동 수집.</summary>
+        public void StartTurn(int playerIndex)
+        {
+            var rules = Config;
+            var player = State.GetPlayer(playerIndex);
+
+            State.ActivePlayerIndex = playerIndex;
+            State.TurnNumber++;
+
+            int nextMax = player.TurnsTaken == 0 ? rules.StartingMaxCost : player.MaxCost + rules.MaxCostGainPerTurn;
+            player.MaxCost = Math.Min(nextMax, rules.MaxCostLimit);
+            player.AvailableCost = player.MaxCost;
+            player.TurnsTaken++;
+
+            var minions = player.Minions.Entities;
+            for (int i = 0; i < minions.Count; i++)
+            {
+                minions[i].PlayedThisTurn = false;
+                minions[i].AttacksThisTurn = 0;
+            }
+
+            Emit(new TurnStartedEvent(playerIndex, State.TurnNumber));
+            Emit(new CostChangedEvent(playerIndex, player.MaxCost, player.AvailableCost));
+
+            DrawCard(playerIndex);
+            CollectBoardTriggers(playerIndex, TriggerType.OnTurnStart);
         }
 
         // ------------------------------------------------------------------ 상시 효과 / 사망 / 승패
@@ -455,6 +702,17 @@ namespace TCG.Core.Rules
             targets.Clear();
             selector.Select(context, effect.Target, targets);
             aura.ApplyAura(context, targets);
+        }
+
+        /// <summary>상시 효과 재계산 → 사망 → 승패 판정을 더 바뀌는 것이 없을 때까지 반복한다.</summary>
+        public void Settle()
+        {
+            do
+            {
+                RecalculateAuras();
+            }
+            while (ProcessDeaths());
+            CheckGameOver();
         }
 
         /// <summary>체력 0 이하 기물을 퇴장시킨다. 한 명이라도 처리했으면 true.</summary>

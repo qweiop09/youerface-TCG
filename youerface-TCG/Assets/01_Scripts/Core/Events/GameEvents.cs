@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TCG.Core.Data;
 using TCG.Core.State;
 
@@ -101,12 +102,12 @@ namespace TCG.Core.Events
         public CardExitedEvent(int entityId, ZoneType from, ExitReason reason) { EntityId = entityId; From = from; Reason = reason; }
     }
 
-    /// <summary>주문 처리가 끝나 묘지(또는 일회성이면 소멸)로 이동.</summary>
-    public sealed class SpellFinishedEvent : GameEvent
+    /// <summary>주문을 사용함. 주문 카드는 바로 묘지(일회성이면 소멸)로 가고, 효과는 체인으로 처리된다.</summary>
+    public sealed class SpellCastEvent : GameEvent
     {
         public int EntityId { get; }
         public ZoneType Destination { get; }
-        public SpellFinishedEvent(int entityId, ZoneType destination) { EntityId = entityId; Destination = destination; }
+        public SpellCastEvent(int entityId, ZoneType destination) { EntityId = entityId; Destination = destination; }
     }
 
     public sealed class CardDiscardedEvent : GameEvent
@@ -124,17 +125,64 @@ namespace TCG.Core.Events
         public PlacementFailedEvent(int playerIndex, ZoneType zone) { PlayerIndex = playerIndex; Zone = zone; }
     }
 
-    /// <summary>카드의 효과가 발동함 (조건을 통과한 효과 1개당 1번).</summary>
-    public sealed class EffectTriggeredEvent : GameEvent
+    /// <summary>효과가 체인에 올라감 → 발동 연출.</summary>
+    public sealed class EffectActivatedEvent : GameEvent
     {
+        public int ChainNumber { get; }
         public int SourceId { get; }
+        public int EffectIndex { get; }
+        public int ControllerIndex { get; }
         public TriggerType Trigger { get; }
         public ActionType Action { get; }
-        public EffectTriggeredEvent(int sourceId, TriggerType trigger, ActionType action)
+        public EffectActivatedEvent(int chainNumber, int sourceId, int effectIndex, int controllerIndex, TriggerType trigger, ActionType action)
         {
+            ChainNumber = chainNumber;
             SourceId = sourceId;
+            EffectIndex = effectIndex;
+            ControllerIndex = controllerIndex;
             Trigger = trigger;
             Action = action;
+        }
+    }
+
+    /// <summary>체인의 효과 1개를 처리하기 시작함 → 처리 연출. 뒤따르는 이벤트들이 이 효과의 결과다.</summary>
+    public sealed class EffectResolvingEvent : GameEvent
+    {
+        public int ChainNumber { get; }
+        public int SourceId { get; }
+        public int EffectIndex { get; }
+        public ActionType Action { get; }
+        public EffectResolvingEvent(int chainNumber, int sourceId, int effectIndex, ActionType action)
+        {
+            ChainNumber = chainNumber;
+            SourceId = sourceId;
+            EffectIndex = effectIndex;
+            Action = action;
+        }
+    }
+
+    /// <summary>무효화된 효과의 처리 차례 → 발동 실패 연출.</summary>
+    public sealed class EffectNegatedEvent : GameEvent
+    {
+        public int ChainNumber { get; }
+        public int SourceId { get; }
+        public EffectNegatedEvent(int chainNumber, int sourceId) { ChainNumber = chainNumber; SourceId = sourceId; }
+    }
+
+    /// <summary>체인이 모두 처리됨.</summary>
+    public sealed class ChainEndedEvent : GameEvent { }
+
+    /// <summary>플레이어의 선택을 기다림 (체인 순서·발동 여부, 대응).</summary>
+    public sealed class DecisionRequestedEvent : GameEvent
+    {
+        public int PlayerIndex { get; }
+        public DecisionType Type { get; }
+        public IReadOnlyList<int> Options { get; }
+        public DecisionRequestedEvent(int playerIndex, DecisionType type, IReadOnlyList<int> options)
+        {
+            PlayerIndex = playerIndex;
+            Type = type;
+            Options = options;
         }
     }
 
@@ -185,7 +233,7 @@ namespace TCG.Core.Events
         public UsageChangedEvent(int entityId, int usage) { EntityId = entityId; Usage = usage; }
     }
 
-    /// <summary>효과 연쇄가 한도를 넘어 남은 발동을 버림.</summary>
+    /// <summary>효과 연쇄가 한도를 넘어 남은 체인·대기 효과를 버림.</summary>
     public sealed class ResolutionLimitReachedEvent : GameEvent { }
 
     public sealed class GameEndedEvent : GameEvent

@@ -96,7 +96,7 @@ namespace TCG.Tests.Core
 
             Assert.That(enemy.Health, Is.EqualTo(1));
             Assert.That(g.P0.Graveyard.Contains(spell), Is.True);
-            Assert.That(g.Events<SpellFinishedEvent>().Single().Destination, Is.EqualTo(ZoneType.Graveyard));
+            Assert.That(g.Events<SpellCastEvent>().Single().Destination, Is.EqualTo(ZoneType.Graveyard));
         }
 
         [Test]
