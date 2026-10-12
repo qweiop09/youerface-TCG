@@ -77,5 +77,54 @@ namespace TCG.Tests.Core
         {
             Assert.That(CardValidator.Validate(TestCards.Minion(cost: -1)), Is.Not.Empty);
         }
+
+        [Test]
+        public void Summon_RequiresDuplicateOption()
+        {
+            var summon = TestCards.Ember();
+            summon.OnDuplicate = null;
+            Assert.That(CardValidator.Validate(TestCards.SummonSpell(summon)), Is.Not.Empty);
+        }
+
+        [Test]
+        public void DuplicateOption_OnlyForSummon()
+        {
+            var minion = TestCards.Minion();
+            minion.OnDuplicate = SummonDuplicateMode.AddNew;
+            Assert.That(CardValidator.Validate(minion), Is.Not.Empty);
+        }
+
+        [Test]
+        public void Keywords_MustMatchCardType()
+        {
+            Assert.That(CardValidator.Validate(TestCards.MinionWith("c_ok", 1, 1, 1,
+                Keyword.Taunt, Keyword.Stealth, Keyword.Vanguard, Keyword.TreasureChest)), Is.Empty);
+
+            Assert.That(CardValidator.Validate(TestCards.MinionWith("c_bad", 1, 1, 1, Keyword.Exhaust)), Is.Not.Empty);
+
+            var spell = TestCards.Spell("c_spell", 1);
+            spell.Keywords.Add(Keyword.Exhaust);
+            Assert.That(CardValidator.Validate(spell), Is.Empty);
+            spell.Keywords.Add(Keyword.Taunt);
+            Assert.That(CardValidator.Validate(spell), Is.Not.Empty);
+        }
+
+        [Test]
+        public void Aura_CannotUseRandomOrChosenTarget_OrNonAuraAction()
+        {
+            Assert.That(CardValidator.Validate(TestCards.FieldWith("c_ok",
+                TestCards.Effect(TriggerType.Aura, TargetType.AllFriendlyMinions, ActionType.ModifyAttack, 1))), Is.Empty);
+            Assert.That(CardValidator.Validate(TestCards.FieldWith("c_random",
+                TestCards.Effect(TriggerType.Aura, TargetType.RandomEnemyMinion, ActionType.ModifyAttack, 1))), Is.Not.Empty);
+            Assert.That(CardValidator.Validate(TestCards.FieldWith("c_damage",
+                TestCards.Effect(TriggerType.Aura, TargetType.EnemyHero, ActionType.Damage, 1))), Is.Not.Empty);
+        }
+
+        [Test]
+        public void ChosenTarget_OnlyOnEnter()
+        {
+            Assert.That(CardValidator.Validate(TestCards.FieldWith("c_turn",
+                TestCards.Effect(TriggerType.OnTurnEnd, TargetType.Chosen, ActionType.Damage, 1))), Is.Not.Empty);
+        }
     }
 }

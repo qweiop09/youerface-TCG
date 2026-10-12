@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TCG.Core.Random;
 
 namespace TCG.Core.State
 {
@@ -47,10 +48,25 @@ namespace TCG.Core.State
                 return false;
 
             _entities.Insert(index, entity);
+            entity.Location = Type;
             return true;
         }
 
-        public bool Remove(Entity entity) => _entities.Remove(entity);
+        public bool Remove(Entity entity)
+        {
+            if (!_entities.Remove(entity))
+                return false;
+            entity.Location = null;
+            return true;
+        }
+
+        /// <summary>결정론적 셔플 (덱 섞기).</summary>
+        public void Shuffle(DeterministicRng rng)
+        {
+            if (rng == null)
+                throw new ArgumentNullException(nameof(rng));
+            rng.Shuffle(_entities);
+        }
 
         public bool Contains(Entity entity) => _entities.Contains(entity);
 

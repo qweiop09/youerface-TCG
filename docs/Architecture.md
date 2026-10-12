@@ -26,7 +26,7 @@ youerface-TCG/Assets/
 ├─ 01_Scripts/
 │  ├─ Core/                     TCG.Core.asmdef      (noEngineReferences: true)
 │  │  ├─ Data/                  CardDefinition, EffectDefinition, RuleConfig, 열거형
-│  │  ├─ State/                 GameState, PlayerState, Entity, Zone
+│  │  ├─ State/                 GameState, PlayerState, Entity, Zone (소멸 영역 Exile 포함)
 │  │  ├─ Commands/              PlayCard, Attack, EndTurn …
 │  │  ├─ Events/                CardEntered, CardExited, DamageDealt …
 │  │  ├─ Rules/                 GameEngine (Validate / Apply)
@@ -110,14 +110,28 @@ youerface-TCG/Assets/
 
 ```json
 { "action": { "type": "CreateSummon",
-  "summon": { "name": "불씨", "type": "Summon", "usage": 2, "art": { "image": "sha256:..." },
+  "summon": { "name": "불씨", "type": "Summon", "usage": 2, "onDuplicate": "AddNew", "art": { "image": "sha256:..." },
               "effects": [ { "trigger": { "type": "OnTurnEnd" }, "conditions": [],
                              "target": { "type": "EnemyHero" }, "action": { "type": "Damage", "amount": 1 } } ] } } }
 ```
+- `onDuplicate`(소환물 필수): `AddNew`(하나 더 놓기) | `RefreshUsage`(기존 소환물 사용 횟수 갱신). "같은 소환물" = 같은 카드 ID의 같은 효과 순번이 만든 소환물.
+- `keywords`: `Taunt`(도발) | `Stealth`(은신) | `Vanguard`(선봉) | `Exhaust`(일회성, 주문 전용) | `TreasureChest`(보물상자). 붙일 수 있는 카드 종류는 레지스트리가 정하고 `CardValidator`가 검사한다.
 - **점수는 저장하지 않는다.** 항상 `ScoreCalculator.Calculate(card, scoreTable)`로 계산 (패치 시 자동 반영).
 - `presentationStyle`: 연출 방식 확장용 자리. 현재 `"default"`(카드 그대로 표시)만.
 - 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다.
 - 스키마 변경 시 `schemaVersion`을 올리고 마이그레이션 코드를 둔다.
+
+## 4.1 규칙 엔진 처리 순서 (M2 구현 기준)
+
+- **효과 블록 레지스트리** (`EffectRegistry`): 조건 `IConditionEvaluator`, 대상 `ITargetSelector`, 행동 `IActionHandler`(상시 가능하면 `IAuraActionHandler`), 키워드 `KeywordInfo`. 새 블록 = 열거형 항목 + 구현 클래스 + `CreateDefault()`에 등록 한 줄. 엔진과 기존 블록은 수정하지 않는다.
+- **키워드**는 두 종류다. 효과형(선봉 = 등장 시 자신의 주인 1장 드로우, 보물상자 = 퇴장 시 1장 드로우)은 레지스트리에 암묵 효과로 등록한다. 판정형(도발·은신·일회성)은 엔진이 해당 시점에 검사한다.
+- **발동 대기열**: 명령이 일으킨 발동은 FIFO 대기열에 쌓이고 하나씩 처리한다. 발동 1건마다 상시 효과 재계산 → 사망 처리 → 승패 판정. 명령 1개당 발동 수 상한(`RuleConfig.MaxTriggerResolutionsPerAction`)을 넘으면 남은 발동을 버린다.
+- **동시 발동 순서**: 해당 플레이어 보드의 영역 순서(기물 → 필드 → 동료 → 소환물), 영역 안에서는 왼쪽부터. 한 카드 안에서는 카드 효과 목록 → 키워드 효과 순서. 사망 처리는 현재 턴 플레이어 쪽부터.
+- **카드 내기**: 코스트 지불 → 손패에서 제거 → 내 보드 카드들의 "카드 사용 시" 대기 → 배치(필드는 기존 필드 퇴장 발동 먼저) 및 "등장 시" 대기 → 처리. 주문은 묘지(일회성이면 소멸 영역)로 옮긴 뒤 효과를 처리한다.
+- **공격**: "공격 시" 발동 처리 → 공격자·대상이 살아 있으면 서로 공격력만큼 동시에 피해(영웅은 반격 없음) → 처리.
+- **턴 시작**: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시". **턴 종료**: "턴 종료 시"(소환물 자동 발동) → 상대 턴 시작.
+- **수치 모델**: 공격력·체력·코스트 = 기본값(영구 변경 포함) + 상시 보정값. 체력은 받은 피해량으로 관리하고, 상시 보정은 처리 단계마다 처음부터 다시 계산한다.
+- **상태 해시** (`StateHasher`, FNV-1a 64): 리플레이·동기화 검증용. 시드 + 덱 + 명령 목록이 같으면 해시가 같다.
 
 ## 5. 이벤트와 연출 — 개요만 (상세는 구현 전 사용자와 논의)
 

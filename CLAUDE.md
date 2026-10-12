@@ -19,7 +19,7 @@
 
 ## 작업 원칙
 
-1. **용어를 정확히 쓴다.** 특히 `점수`(카드 가치)와 `코스트`(하스스톤 마나에 해당)는 다른 개념이다. → [GameDesign.md §2](docs/GameDesign.md#2-용어)
+1. **용어를 정확히 쓴다.** 특히 `점수`(카드 가치)와 `코스트`(하스스톤 마나에 해당)는 다른 개념이다. 하스스톤의 "하수인"은 **`기물`**이라고 부른다(코드 이름은 `Minion`). → [GameDesign.md §2](docs/GameDesign.md#2-용어)
 2. **Core/Client 분리를 지킨다.** 게임 규칙은 `TCG.Core` 어셈블리(Unity 참조 없음)에만, 화면·연출·입력·네트워크는 `TCG.Client`에. → [Architecture.md §2–3](docs/Architecture.md)
 3. **Core는 결정론적으로 작성한다.** int만 사용, 자체 RNG, 컬렉션 순회 순서 고정. → [Architecture.md §3](docs/Architecture.md#3-core-작성-규칙)
 4. **"미정"으로 표시된 사항은 임의로 확정하지 않는다.** 구현에 필요하면 사용자에게 먼저 물어본다. 당장 값이 필요하면 `RuleConfig`의 임시값으로 두고 코드에 박지 않는다.

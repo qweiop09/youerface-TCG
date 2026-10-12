@@ -29,7 +29,7 @@ namespace TCG.Core.Data
     {
         /// <summary>체력이 Value 이하</summary>
         HealthAtMost,
-        /// <summary>내 하수인이 Value개 이상</summary>
+        /// <summary>내 기물이 Value개 이상</summary>
         FriendlyMinionCountAtLeast,
         /// <summary>손패가 Value장 이하</summary>
         HandCountAtMost,
@@ -43,7 +43,7 @@ namespace TCG.Core.Data
         Self,
         FriendlyHero,
         EnemyHero,
-        /// <summary>무작위 적 하수인 Count개</summary>
+        /// <summary>무작위 적 기물 Count개</summary>
         RandomEnemyMinion,
         AllEnemyMinions,
         AllFriendlyMinions,

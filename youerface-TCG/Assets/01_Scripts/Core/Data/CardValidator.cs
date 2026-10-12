@@ -1,16 +1,18 @@
 using System.Collections.Generic;
+using TCG.Core.Effects;
 
 namespace TCG.Core.Data
 {
     /// <summary>
-    /// 카드 정의가 GameDesign §5.1의 확정 규칙에 맞는지 검사한다.
+    /// 카드 정의가 확정 규칙(GameDesign §4.3, §5.1, §7.1)에 맞는지 검사한다.
     /// 카드 제작기와 덱 검증이 같은 코드를 쓴다. 빈 목록이면 유효.
     /// </summary>
     public static class CardValidator
     {
-        /// <summary>덱에 넣는 카드(최상위 카드)를 검사한다.</summary>
-        public static IReadOnlyList<string> Validate(CardDefinition card)
+        /// <summary>덱에 넣는 카드(최상위 카드)를 검사한다. registry를 생략하면 기본 블록 목록을 쓴다.</summary>
+        public static IReadOnlyList<string> Validate(CardDefinition card, EffectRegistry registry = null)
         {
+            registry = registry ?? EffectRegistry.Default;
             var errors = new List<string>();
             if (card == null)
             {
@@ -21,11 +23,11 @@ namespace TCG.Core.Data
             if (card.Type == CardType.Summon)
                 errors.Add("소환물은 다른 카드의 효과로만 생성되며 단독 카드가 될 수 없습니다.");
 
-            ValidateCard(card, errors, card.Name);
+            ValidateCard(card, registry, errors, card.Name);
             return errors;
         }
 
-        static void ValidateCard(CardDefinition card, List<string> errors, string path)
+        static void ValidateCard(CardDefinition card, EffectRegistry registry, List<string> errors, string path)
         {
             if (card.Cost < 0)
                 errors.Add($"[{path}] 코스트는 0 이상이어야 합니다.");
@@ -33,13 +35,13 @@ namespace TCG.Core.Data
             if (card.Type == CardType.Minion)
             {
                 if (card.Attack == null || card.Attack < 0)
-                    errors.Add($"[{path}] 하수인은 0 이상의 공격력이 필요합니다.");
+                    errors.Add($"[{path}] 기물은 0 이상의 공격력이 필요합니다.");
                 if (card.Health == null || card.Health < 1)
-                    errors.Add($"[{path}] 하수인은 1 이상의 체력이 필요합니다.");
+                    errors.Add($"[{path}] 기물은 1 이상의 체력이 필요합니다.");
             }
             else if (card.Attack != null || card.Health != null)
             {
-                errors.Add($"[{path}] 공격력·체력은 하수인만 가질 수 있습니다.");
+                errors.Add($"[{path}] 공격력·체력은 기물만 가질 수 있습니다.");
             }
 
             switch (card.Type)
@@ -47,6 +49,8 @@ namespace TCG.Core.Data
                 case CardType.Summon:
                     if (card.Usage == null || card.Usage < 1)
                         errors.Add($"[{path}] 소환물은 1 이상의 사용 횟수가 필요합니다.");
+                    if (card.OnDuplicate == null)
+                        errors.Add($"[{path}] 소환물은 중복 생성 시 처리(새로 놓기 / 사용 횟수 갱신)를 골라야 합니다.");
                     break;
                 case CardType.Companion:
                     if (card.Usage != null && card.Usage < 1)
@@ -58,33 +62,81 @@ namespace TCG.Core.Data
                     break;
             }
 
+            if (card.Type != CardType.Summon && card.OnDuplicate != null)
+                errors.Add($"[{path}] 중복 생성 처리는 소환물만 가질 수 있습니다.");
+
+            if (card.Keywords != null)
+            {
+                for (int i = 0; i < card.Keywords.Count; i++)
+                {
+                    var keyword = card.Keywords[i];
+                    if (!registry.TryGetKeyword(keyword, out var info))
+                        errors.Add($"[{path}] 등록되지 않은 키워드입니다: {keyword}");
+                    else if (!info.IsAllowedOn(card.Type))
+                        errors.Add($"[{path}] {keyword} 키워드는 이 카드 종류에 붙일 수 없습니다.");
+                }
+            }
+
             if (card.Effects == null)
                 return;
 
             for (int i = 0; i < card.Effects.Count; i++)
-            {
-                var effect = card.Effects[i];
-                string effectPath = $"{path}/효과{i + 1}";
-                if (effect == null || effect.Trigger == null || effect.Target == null || effect.Action == null)
-                {
-                    errors.Add($"[{effectPath}] 트리거·대상·행동이 모두 필요합니다.");
-                    continue;
-                }
+                ValidateEffect(card.Effects[i], registry, errors, $"{path}/효과{i + 1}");
+        }
 
-                var action = effect.Action;
-                if (action.Type == ActionType.CreateSummon)
+        static void ValidateEffect(EffectDefinition effect, EffectRegistry registry, List<string> errors, string path)
+        {
+            if (effect == null || effect.Trigger == null || effect.Target == null || effect.Action == null)
+            {
+                errors.Add($"[{path}] 트리거·대상·행동이 모두 필요합니다.");
+                return;
+            }
+
+            if (effect.Conditions != null)
+            {
+                for (int c = 0; c < effect.Conditions.Count; c++)
                 {
-                    if (action.Summon == null)
-                        errors.Add($"[{effectPath}] 소환물 생성 효과에는 소환물 정의가 필요합니다.");
-                    else if (action.Summon.Type != CardType.Summon)
-                        errors.Add($"[{effectPath}] 소환물 생성 효과로는 소환물만 만들 수 있습니다.");
-                    else
-                        ValidateCard(action.Summon, errors, $"{effectPath}/{action.Summon.Name}");
+                    var condition = effect.Conditions[c];
+                    if (condition == null || !registry.TryGetCondition(condition.Type, out _))
+                        errors.Add($"[{path}] 등록되지 않은 조건입니다.");
                 }
-                else if (action.Summon != null)
-                {
-                    errors.Add($"[{effectPath}] 소환물 정의는 소환물 생성 효과에만 둘 수 있습니다.");
-                }
+            }
+
+            bool hasTarget = registry.TryGetTarget(effect.Target.Type, out var selector);
+            if (!hasTarget)
+                errors.Add($"[{path}] 등록되지 않은 대상입니다: {effect.Target.Type}");
+
+            if (!registry.TryGetAction(effect.Action.Type, out var action))
+            {
+                errors.Add($"[{path}] 등록되지 않은 행동입니다: {effect.Action.Type}");
+                return;
+            }
+
+            if (effect.Trigger.Type == TriggerType.Aura)
+            {
+                if (!(action is IAuraActionHandler))
+                    errors.Add($"[{path}] {effect.Action.Type} 행동은 상시 효과로 쓸 수 없습니다.");
+                if (hasTarget && (selector.IsRandom || selector.RequiresChoice))
+                    errors.Add($"[{path}] 상시 효과에는 무작위·선택 대상을 쓸 수 없습니다.");
+            }
+            else if (hasTarget && selector.RequiresChoice && effect.Trigger.Type != TriggerType.OnEnter)
+            {
+                errors.Add($"[{path}] 선택 대상은 등장 시 효과에만 쓸 수 있습니다.");
+            }
+
+            if (effect.Action.Type == ActionType.CreateSummon)
+            {
+                var summon = effect.Action.Summon;
+                if (summon == null)
+                    errors.Add($"[{path}] 소환물 생성 효과에는 소환물 정의가 필요합니다.");
+                else if (summon.Type != CardType.Summon)
+                    errors.Add($"[{path}] 소환물 생성 효과로는 소환물만 만들 수 있습니다.");
+                else
+                    ValidateCard(summon, registry, errors, $"{path}/{summon.Name}");
+            }
+            else if (effect.Action.Summon != null)
+            {
+                errors.Add($"[{path}] 소환물 정의는 소환물 생성 효과에만 둘 수 있습니다.");
             }
         }
     }

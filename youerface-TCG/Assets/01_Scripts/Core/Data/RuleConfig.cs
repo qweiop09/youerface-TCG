@@ -28,6 +28,16 @@ namespace TCG.Core.Data
         public bool FatigueEnabled { get; set; } = true;
         public int TurnTimeLimitSeconds { get; set; } = 75;
 
+        // --- 전투 (하스스톤 기준 임시값) ---
+        /// <summary>기물 1개가 한 턴에 공격할 수 있는 횟수.</summary>
+        public int AttacksPerTurn { get; set; } = 1;
+        /// <summary>낸 턴에 바로 공격할 수 있는가 (하스스톤: 불가).</summary>
+        public bool CanAttackOnPlayedTurn { get; set; } = false;
+
+        // --- 엔진 안전장치 ---
+        /// <summary>명령 1개에서 처리할 수 있는 효과 발동 수. 넘으면 남은 발동을 버린다(무한 루프 방지).</summary>
+        public int MaxTriggerResolutionsPerAction { get; set; } = 1000;
+
         // --- 영역 칸 수 (확정, GameDesign §4.1) ---
         public int MinionSlots { get; set; } = 3;
         public int FieldSlots { get; set; } = 1;

@@ -3,7 +3,7 @@ namespace TCG.Core.Data
     /// <summary>카드 종류 (GameDesign §5).</summary>
     public enum CardType
     {
-        /// <summary>하수인 영역. 공격력·체력 보유, 공격/피격 가능.</summary>
+        /// <summary>기물 영역. 공격력·체력 보유, 공격/피격 가능.</summary>
         Minion,
         /// <summary>즉시 효과를 내고 묘지로 감.</summary>
         Spell,

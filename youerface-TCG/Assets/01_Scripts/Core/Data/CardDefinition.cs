@@ -17,12 +17,14 @@ namespace TCG.Core.Data
         public CardType Type { get; set; }
         public int Cost { get; set; }
 
-        /// <summary>하수인 전용. 그 외 종류는 null.</summary>
+        /// <summary>기물 전용. 그 외 종류는 null.</summary>
         public int? Attack { get; set; }
-        /// <summary>하수인 전용. 그 외 종류는 null (필드·동료·소환물은 체력 없음).</summary>
+        /// <summary>기물 전용. 그 외 종류는 null (필드·동료·소환물은 체력 없음).</summary>
         public int? Health { get; set; }
         /// <summary>사용 횟수. 소환물은 필수, 동료는 선택(null = 영구 지속), 그 외 종류는 null.</summary>
         public int? Usage { get; set; }
+        /// <summary>같은 소환물이 또 생성될 때의 처리. 소환물은 필수, 그 외 종류는 null.</summary>
+        public SummonDuplicateMode? OnDuplicate { get; set; }
 
         public List<Keyword> Keywords { get; set; } = new List<Keyword>();
         public CardArt Art { get; set; } = new CardArt();

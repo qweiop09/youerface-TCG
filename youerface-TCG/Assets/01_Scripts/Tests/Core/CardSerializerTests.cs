@@ -57,6 +57,7 @@ namespace TCG.Tests.Core
             Assert.That(summon, Is.Not.Null);
             Assert.That(summon.Type, Is.EqualTo(CardType.Summon));
             Assert.That(summon.Usage, Is.EqualTo(2));
+            Assert.That(summon.OnDuplicate, Is.EqualTo(SummonDuplicateMode.AddNew));
             Assert.That(summon.Effects[0].Trigger.Type, Is.EqualTo(TriggerType.OnTurnEnd));
         }
 

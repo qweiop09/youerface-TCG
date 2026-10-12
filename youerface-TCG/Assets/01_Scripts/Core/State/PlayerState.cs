@@ -16,6 +16,8 @@ namespace TCG.Core.State
         public int AvailableCost { get; set; }
         /// <summary>덱 소진 후 드로우 시도 횟수 (피로 피해 계산용).</summary>
         public int FatigueCount { get; set; }
+        /// <summary>지금까지 시작한 자기 턴 수.</summary>
+        public int TurnsTaken { get; set; }
 
         public Zone Deck { get; }
         public Zone Hand { get; }
@@ -24,9 +26,12 @@ namespace TCG.Core.State
         public Zone Field { get; }
         public Zone Companions { get; }
         public Zone Summons { get; }
+        public Zone Exile { get; }
 
         /// <summary>모든 영역. 순회 순서는 <see cref="ZoneType"/> 선언 순서로 고정.</summary>
         public IReadOnlyList<Zone> Zones { get; }
+        /// <summary>보드 영역(기물·필드·동료·소환물). 효과 발동 순서도 이 순서를 따른다.</summary>
+        public IReadOnlyList<Zone> BoardZones { get; }
 
         public PlayerState(int index, int heroId, RuleConfig rules)
         {
@@ -43,8 +48,10 @@ namespace TCG.Core.State
             Field = new Zone(ZoneType.Field, rules.FieldSlots);
             Companions = new Zone(ZoneType.Companion, rules.CompanionSlots);
             Summons = new Zone(ZoneType.Summon, rules.SummonSlots);
+            Exile = new Zone(ZoneType.Exile, Zone.Unlimited);
 
-            Zones = new[] { Deck, Hand, Graveyard, Minions, Field, Companions, Summons };
+            Zones = new[] { Deck, Hand, Graveyard, Minions, Field, Companions, Summons, Exile };
+            BoardZones = new[] { Minions, Field, Companions, Summons };
         }
 
         public Zone GetZone(ZoneType type)
@@ -58,6 +65,7 @@ namespace TCG.Core.State
                 case ZoneType.Field: return Field;
                 case ZoneType.Companion: return Companions;
                 case ZoneType.Summon: return Summons;
+                case ZoneType.Exile: return Exile;
                 default: throw new ArgumentOutOfRangeException(nameof(type), type, null);
             }
         }

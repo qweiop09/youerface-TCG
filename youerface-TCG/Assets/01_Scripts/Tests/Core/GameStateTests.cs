@@ -12,7 +12,7 @@ namespace TCG.Tests.Core
             var rules = new RuleConfig { HeroHealth = 25 };
             var state = new GameState(rules, seed: 42);
 
-            Assert.That(state.Players, Has.Count.EqualTo(2));
+            Assert.That(state.Players.Count, Is.EqualTo(2));
             Assert.That(state.Phase, Is.EqualTo(GamePhase.NotStarted));
             for (int i = 0; i < 2; i++)
             {

@@ -19,7 +19,7 @@ namespace TCG.Tests.Core
             };
         }
 
-        /// <summary>Architecture §4 예시와 같은 하수인: 도발, 등장 시 무작위 적 하수인 1에게 2 피해.</summary>
+        /// <summary>Architecture §4 예시와 같은 기물: 도발, 등장 시 무작위 적 기물 1에게 2 피해.</summary>
         public static CardDefinition FireSpirit()
         {
             var card = Minion("c_7f3a");
@@ -36,13 +36,14 @@ namespace TCG.Tests.Core
             return card;
         }
 
-        public static CardDefinition Ember(int usage = 2)
+        public static CardDefinition Ember(int usage = 2, SummonDuplicateMode onDuplicate = SummonDuplicateMode.AddNew)
         {
             var summon = new CardDefinition
             {
                 Name = "불씨",
                 Type = CardType.Summon,
                 Usage = usage,
+                OnDuplicate = onDuplicate,
             };
             summon.Art.Image = "sha256:9999";
             summon.Effects.Add(new EffectDefinition
@@ -85,6 +86,52 @@ namespace TCG.Tests.Core
         public static CardDefinition Field()
         {
             return new CardDefinition { Id = "c_field", Name = "필드", Type = CardType.Field, Cost = 2 };
+        }
+
+        public static CardDefinition Spell(string id, int cost, params EffectDefinition[] effects)
+        {
+            var card = new CardDefinition { Id = id, Name = id, Type = CardType.Spell, Cost = cost };
+            card.Effects.AddRange(effects);
+            return card;
+        }
+
+        public static CardDefinition FieldWith(string id, params EffectDefinition[] effects)
+        {
+            var card = new CardDefinition { Id = id, Name = id, Type = CardType.Field, Cost = 1 };
+            card.Effects.AddRange(effects);
+            return card;
+        }
+
+        public static CardDefinition CompanionWith(string id, int? usage, params EffectDefinition[] effects)
+        {
+            var card = new CardDefinition { Id = id, Name = id, Type = CardType.Companion, Cost = 1, Usage = usage };
+            card.Effects.AddRange(effects);
+            return card;
+        }
+
+        public static CardDefinition MinionWith(string id, int cost, int attack, int health, params Keyword[] keywords)
+        {
+            var card = Minion(id, cost, attack, health);
+            card.Keywords.AddRange(keywords);
+            return card;
+        }
+
+        public static EffectDefinition Effect(TriggerType trigger, TargetType target, ActionType action, int? amount = null,
+            CardDefinition summon = null, int? count = null, params ConditionDefinition[] conditions)
+        {
+            return new EffectDefinition
+            {
+                Trigger = new TriggerDefinition { Type = trigger },
+                Conditions = new List<ConditionDefinition>(conditions),
+                Target = new TargetDefinition { Type = target, Count = count },
+                Action = new ActionDefinition { Type = action, Amount = amount, Summon = summon },
+            };
+        }
+
+        /// <summary>등장 시 소환물을 만드는 0코스트 주문.</summary>
+        public static CardDefinition SummonSpellFor(CardDefinition summon, string id = "c_summoner")
+        {
+            return Spell(id, 0, Effect(TriggerType.OnEnter, TargetType.Self, ActionType.CreateSummon, summon: summon));
         }
     }
 }

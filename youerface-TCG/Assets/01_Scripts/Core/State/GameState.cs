@@ -61,6 +61,17 @@ namespace TCG.Core.State
             return new Entity(AllocateEntityId(), ownerIndex, definition);
         }
 
+        /// <summary>ID가 영웅이면 그 영웅, 아니면 null.</summary>
+        public HeroState FindHero(int id)
+        {
+            for (int i = 0; i < _players.Length; i++)
+            {
+                if (_players[i].Hero.Id == id)
+                    return _players[i].Hero;
+            }
+            return null;
+        }
+
         public Entity FindEntity(int entityId)
         {
             for (int i = 0; i < _players.Length; i++)
