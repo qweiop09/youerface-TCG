@@ -75,12 +75,7 @@ namespace TCG.Tests.Core
             return LastEvents;
         }
 
-        public static Command DefaultAnswer(PendingDecision decision)
-        {
-            if (decision.Type == DecisionType.ChooseTriggers)
-                return new ChooseTriggersCommand(decision.PlayerIndex, decision.Options.ToList());
-            return new PassChainCommand(decision.PlayerIndex);
-        }
+        public static Command DefaultAnswer(PendingDecision decision) => TCG.Core.AI.LegalCommands.DefaultAnswer(decision);
 
         public List<GameEvent> Play(Entity card, int? target = null, int? position = null) =>
             Apply(new PlayCardCommand(card.OwnerIndex, card.Id, target, position));

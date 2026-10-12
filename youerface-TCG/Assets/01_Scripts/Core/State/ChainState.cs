@@ -43,10 +43,8 @@ namespace TCG.Core.State
 
     public enum DecisionType
     {
-        /// <summary>동시에 발동한 내 효과들의 체인 순서 정하기 + 선택 효과 발동 여부.</summary>
-        ChooseTriggers,
-        /// <summary>체인에 대응할지(효과를 걸지) 패스할지.</summary>
-        ChainResponse,
+        /// <summary>체인 기회: 효과 하나를 체인에 올리거나 패스 (GameDesign §7.2 규칙 3).</summary>
+        ChainPriority,
     }
 
     /// <summary>엔진이 플레이어의 선택을 기다리는 중.</summary>
@@ -54,14 +52,17 @@ namespace TCG.Core.State
     {
         public DecisionType Type { get; }
         public int PlayerIndex { get; }
-        /// <summary>ChooseTriggers: 고를 수 있는 PendingTrigger ID들.</summary>
+        /// <summary>체인에 올릴 수 있는 대기 효과(PendingTrigger) ID들. (대응 효과는 블록이 생기면 추가)</summary>
         public IReadOnlyList<int> Options { get; }
+        /// <summary>패스할 수 있는가. 올리지 않은 강제 효과가 남아 있으면 false.</summary>
+        public bool CanPass { get; }
 
-        public PendingDecision(DecisionType type, int playerIndex, IReadOnlyList<int> options)
+        public PendingDecision(DecisionType type, int playerIndex, IReadOnlyList<int> options, bool canPass)
         {
             Type = type;
             PlayerIndex = playerIndex;
             Options = options ?? new int[0];
+            CanPass = canPass;
         }
     }
 

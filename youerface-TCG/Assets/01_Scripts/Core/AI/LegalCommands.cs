@@ -8,9 +8,6 @@ namespace TCG.Core.AI
     /// <summary>지금 낼 수 있는 명령 목록 (결정적 순서). 엔진 검증을 통과한 것만.</summary>
     public static class LegalCommands
     {
-        /// <summary>선택 효과·순서 조합이 이보다 많으면 일부(제시 순서, 역순)만 만든다.</summary>
-        const int MaxPermutedItems = 3;
-
         public static List<Command> Generate(GameEngine engine, GameState state, int player)
         {
             var result = new List<Command>();
@@ -86,93 +83,17 @@ namespace TCG.Core.AI
 
         static void AddDecisionAnswers(GameState state, PendingDecision decision, List<Command> result)
         {
-            if (decision.Type == DecisionType.ChainResponse)
-            {
-                result.Add(new PassChainCommand(decision.PlayerIndex));
-                return;
-            }
-
-            var mandatory = new List<int>();
-            var optional = new List<int>();
             for (int i = 0; i < decision.Options.Count; i++)
-            {
-                int id = decision.Options[i];
-                var trigger = state.PendingTriggers.Find(t => t.Id == id);
-                if (trigger != null && trigger.IsOptional)
-                    optional.Add(id);
-                else
-                    mandatory.Add(id);
-            }
-
-            var subsets = new List<List<int>>();
-            if (optional.Count <= MaxPermutedItems)
-            {
-                for (int mask = (1 << optional.Count) - 1; mask >= 0; mask--)
-                {
-                    var subset = new List<int>();
-                    for (int i = 0; i < optional.Count; i++)
-                    {
-                        if ((mask & (1 << i)) != 0)
-                            subset.Add(optional[i]);
-                    }
-                    subsets.Add(subset);
-                }
-            }
-            else
-            {
-                subsets.Add(new List<int>(optional));
-                subsets.Add(new List<int>());
-            }
-
-            for (int s = 0; s < subsets.Count; s++)
-            {
-                var items = new List<int>();
-                for (int i = 0; i < decision.Options.Count; i++)
-                {
-                    int id = decision.Options[i];
-                    if (mandatory.Contains(id) || subsets[s].Contains(id))
-                        items.Add(id);
-                }
-
-                if (items.Count <= MaxPermutedItems)
-                {
-                    foreach (var order in Permutations(items))
-                        result.Add(new ChooseTriggersCommand(decision.PlayerIndex, order));
-                }
-                else
-                {
-                    result.Add(new ChooseTriggersCommand(decision.PlayerIndex, items));
-                    var reversed = new List<int>(items);
-                    reversed.Reverse();
-                    result.Add(new ChooseTriggersCommand(decision.PlayerIndex, reversed));
-                }
-            }
+                result.Add(new ChainActivateCommand(decision.PlayerIndex, decision.Options[i]));
+            if (decision.CanPass)
+                result.Add(new PassChainCommand(decision.PlayerIndex));
         }
 
-        static IEnumerable<List<int>> Permutations(List<int> items)
-        {
-            if (items.Count <= 1)
-            {
-                yield return new List<int>(items);
-                yield break;
-            }
-            for (int i = 0; i < items.Count; i++)
-            {
-                var rest = new List<int>(items);
-                rest.RemoveAt(i);
-                foreach (var tail in Permutations(rest))
-                {
-                    tail.Insert(0, items[i]);
-                    yield return tail;
-                }
-            }
-        }
-
-        /// <summary>기본 응답: 제시된 순서대로 전부 발동, 대응은 패스.</summary>
+        /// <summary>기본 응답: 제시된 첫 효과를 체인에 올린다. 올릴 것이 없으면 패스.</summary>
         public static Command DefaultAnswer(PendingDecision decision)
         {
-            if (decision.Type == DecisionType.ChooseTriggers)
-                return new ChooseTriggersCommand(decision.PlayerIndex, new List<int>(decision.Options));
+            if (decision.Options.Count > 0)
+                return new ChainActivateCommand(decision.PlayerIndex, decision.Options[0]);
             return new PassChainCommand(decision.PlayerIndex);
         }
     }

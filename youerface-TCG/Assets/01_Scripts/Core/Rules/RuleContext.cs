@@ -11,13 +11,13 @@ namespace TCG.Core.Rules
     /// 명령 1개를 처리하는 동안의 작업 공간. 상태를 바꾸는 기본 연산과 유희왕식 체인 처리(GameDesign §7.2)를 담당한다.
     /// 효과 블록은 상태를 직접 바꾸지 않고 여기의 기본 연산을 호출한다.
     ///
-    /// 체인 처리 (<see cref="Advance"/>):
+    /// 체인 처리 (<see cref="Advance"/>, GameDesign §7.2):
     /// 1. 행동이 일으킨 발동은 대기 효과(PendingTriggers)로 모인다.
-    /// 2. 체인 만들기: 현재 턴 플레이어의 대기 효과부터, 그다음 상대 것. 같은 플레이어 효과가 둘 이상이거나
-    ///    선택 효과가 있으면 플레이어에게 순서·발동 여부를 묻는다(ChooseTriggers).
-    /// 3. 대응 기회: 상대 → 발동자 순. 대응할 효과가 없으면 자동 패스. 둘 다 패스하면 체인이 닫힌다.
-    /// 4. 마지막 링크부터 처리. 처리 중 체력 0 이하는 즉시 사망. 처리 중 새로 발동한 효과는 다음 체인으로.
-    /// 5. 체인도 대기 효과도 없으면 이어서 할 행동(전투 피해, 턴 넘기기)을 실행.
+    /// 2. 체인 기회는 현재 턴 플레이어부터. 기회를 가진 플레이어는 대기 효과 하나를 올리거나 패스한다 (한 번에 하나).
+    ///    체인 1 다음은 발동자 → 상대, 체인 2 이후 다음은 상대 → 건 사람. 둘이 연속 패스하면 체인이 닫힌다.
+    ///    올리지 않은 강제 효과가 있으면 패스할 수 없고, 강제 1개뿐이면 자동으로 올린다. 올릴 것이 없으면 자동 패스.
+    /// 3. 마지막 링크부터 처리. 처리 중 체력 0 이하는 즉시 사망. 처리 중 새로 발동한 효과는 다음 체인으로.
+    /// 4. 체인도 대기 효과도 없으면 이어서 할 행동(전투 피해, 턴 넘기기)을 실행.
     /// 매 단계마다 상시 효과 재계산 → 사망 → 승패 판정.
     /// </summary>
     public sealed class RuleContext
@@ -324,15 +324,9 @@ namespace TCG.Core.Rules
                     ResolveNextLink();
                     continue;
                 }
-                if (State.PendingTriggers.Count > 0)
+                if (State.Chain.Count > 0 || State.PendingTriggers.Count > 0)
                 {
-                    if (!PlacePendingTriggers())
-                        return;
-                    continue;
-                }
-                if (State.Chain.Count > 0)
-                {
-                    if (!RunResponseWindow())
+                    if (!RunPriority())
                         return;
                     continue;
                 }
@@ -348,35 +342,67 @@ namespace TCG.Core.Rules
         }
 
         /// <summary>
-        /// 대기 효과를 체인에 올린다. 현재 턴 플레이어 먼저. 선택이 필요하면 Decision을 걸고 false.
+        /// 체인 기회 1번을 처리한다: 자동으로 올리거나 자동 패스하면 true, 플레이어 선택이 필요하면 Decision을 걸고 false.
         /// </summary>
-        bool PlacePendingTriggers()
+        bool RunPriority()
         {
-            for (int k = 0; k < GameState.PlayerCount; k++)
+            if (State.PriorityPlayer < 0)
             {
-                int player = (State.ActivePlayerIndex + k) % GameState.PlayerCount;
-                var mine = PendingOf(player);
-                if (mine.Count == 0)
-                    continue;
-
-                if (mine.Count == 1 && !mine[0].IsOptional)
-                {
-                    AddLink(mine[0]);
-                    State.PendingTriggers.Remove(mine[0]);
-                    k--; // 같은 플레이어를 다시 확인 (남은 것 없음)
-                    continue;
-                }
-
-                var options = new List<int>();
-                for (int i = 0; i < mine.Count; i++)
-                    options.Add(mine[i].Id);
-                State.Decision = new PendingDecision(DecisionType.ChooseTriggers, player, options);
-                Emit(new DecisionRequestedEvent(player, DecisionType.ChooseTriggers, options));
-                return false;
+                int active = State.ActivePlayerIndex;
+                State.PriorityPlayer = PendingOf(active).Count > 0 ? active : 1 - active;
+                State.PriorityPasses = 0;
             }
 
-            State.ResponsePasses = 0;
-            return true;
+            int player = State.PriorityPlayer;
+            var mine = PendingOf(player);
+            bool hasMandatory = mine.Exists(t => !t.IsOptional);
+
+            // 대응 효과(HasResponses)가 생기면 여기서 선택지에 더한다.
+            if (mine.Count == 0 && !HasResponses(player))
+            {
+                Pass(player);
+                return true;
+            }
+            if (mine.Count == 1 && hasMandatory && !HasResponses(player))
+            {
+                Place(mine[0]);
+                return true;
+            }
+
+            var options = new List<int>();
+            for (int i = 0; i < mine.Count; i++)
+                options.Add(mine[i].Id);
+            State.Decision = new PendingDecision(DecisionType.ChainPriority, player, options, !hasMandatory);
+            Emit(new DecisionRequestedEvent(player, DecisionType.ChainPriority, options));
+            return false;
+        }
+
+        /// <summary>대기 효과를 체인에 올리고 다음 체인 기회를 정한다.</summary>
+        void Place(PendingTrigger trigger)
+        {
+            AddLink(trigger);
+            State.PendingTriggers.Remove(trigger);
+            State.PriorityPasses = 0;
+            int number = State.Chain[State.Chain.Count - 1].Number;
+            // 처음 발동한 효과(체인 1) 다음은 발동자부터, 체인으로 건 효과 다음은 상대부터.
+            State.PriorityPlayer = number == 1 ? trigger.ControllerIndex : 1 - trigger.ControllerIndex;
+        }
+
+        void Pass(int player)
+        {
+            State.PriorityPasses++;
+            if (State.PriorityPasses < 2)
+            {
+                State.PriorityPlayer = 1 - player;
+                return;
+            }
+
+            // 둘 다 패스: 체인이 닫힌다. 남은 대기 효과는 (강제는 남을 수 없으므로) 발동하지 않은 선택 효과뿐이다.
+            State.PendingTriggers.Clear();
+            State.PriorityPlayer = -1;
+            State.PriorityPasses = 0;
+            if (State.Chain.Count > 0)
+                State.ChainClosed = true;
         }
 
         List<PendingTrigger> PendingOf(int player)
@@ -409,20 +435,21 @@ namespace TCG.Core.Rules
                 link.Trigger, effect?.Action?.Type ?? default(ActionType)));
         }
 
-        /// <summary>
-        /// ChooseTriggers 선택 적용: 고른 순서대로 체인에 올리고, 고르지 않은 선택 효과는 버린다.
-        /// 검증은 <see cref="GameEngine.Validate"/>에서 끝났다고 가정한다.
-        /// </summary>
-        public void ApplyTriggerChoice(int player, IReadOnlyList<int> orderedTriggerIds)
+        /// <summary>체인 기회 선택: 대기 효과 하나를 올린다. 검증은 <see cref="GameEngine.Validate"/>에서 끝났다고 가정한다.</summary>
+        public void ActivateFromDecision(int triggerId)
         {
-            for (int i = 0; i < orderedTriggerIds.Count; i++)
-            {
-                var trigger = FindPending(orderedTriggerIds[i]);
-                if (trigger != null)
-                    AddLink(trigger);
-            }
-            State.PendingTriggers.RemoveAll(t => t.ControllerIndex == player);
             State.Decision = null;
+            var trigger = FindPending(triggerId);
+            if (trigger != null)
+                Place(trigger);
+        }
+
+        /// <summary>체인 기회 선택: 패스.</summary>
+        public void PassChain()
+        {
+            int player = State.Decision?.PlayerIndex ?? State.PriorityPlayer;
+            State.Decision = null;
+            Pass(player);
         }
 
         public PendingTrigger FindPending(int triggerId)
@@ -435,45 +462,17 @@ namespace TCG.Core.Rules
             return null;
         }
 
-        /// <summary>대응 기회: 상대 → 발동자. 대응할 효과가 없으면 자동 패스. 선택이 필요하면 false.</summary>
-        bool RunResponseWindow()
-        {
-            while (State.ResponsePasses < 2)
-            {
-                int lastController = State.Chain[State.Chain.Count - 1].ControllerIndex;
-                int responder = State.ResponsePasses == 0 ? 1 - lastController : lastController;
-                if (HasResponses(responder))
-                {
-                    State.Decision = new PendingDecision(DecisionType.ChainResponse, responder, null);
-                    Emit(new DecisionRequestedEvent(responder, DecisionType.ChainResponse, State.Decision.Options));
-                    return false;
-                }
-                State.ResponsePasses++;
-            }
-
-            State.ChainClosed = true;
-            return true;
-        }
-
         /// <summary>
         /// 체인에 대응해 발동할 수 있는 효과가 있는가.
         /// 대응용 블록(상대 카드 사용·효과 발동에 대응, 무효화)은 아직 없으므로 항상 false (GameDesign §7.2).
         /// </summary>
         public bool HasResponses(int playerIndex) => false;
 
-        /// <summary>대응 기회에서 패스.</summary>
-        public void PassChain()
-        {
-            State.Decision = null;
-            State.ResponsePasses++;
-        }
-
         void ResolveNextLink()
         {
             if (State.Chain.Count == 0)
             {
                 State.ChainClosed = false;
-                State.ResponsePasses = 0;
                 Emit(new ChainEndedEvent());
                 return;
             }
@@ -527,7 +526,8 @@ namespace TCG.Core.Rules
             State.Chain.Clear();
             State.PendingTriggers.Clear();
             State.ChainClosed = false;
-            State.ResponsePasses = 0;
+            State.PriorityPlayer = -1;
+            State.PriorityPasses = 0;
             State.Decision = null;
         }
 

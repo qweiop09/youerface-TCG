@@ -3,54 +3,103 @@ using TCG.Client.Battle;
 using TCG.Client.Common;
 using TCG.Core.Commands;
 using TCG.Core.State;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace TCG.Client.Interaction
 {
     /// <summary>
-    /// 체인 선택 창 (GameDesign §7.2). 내 효과가 동시에 발동했을 때 체인에 올릴 순서를 고르고,
-    /// 선택 효과는 빼고 확정할 수 있다. 대응 기회(ChainResponse)에는 "패스" 버튼만 있다 (대응 블록은 나중에).
+    /// 체인 기회 창 (GameDesign §7.2 규칙 3). 체인에는 한 번에 하나: 효과 하나를 누르면 바로 체인에 올라가고,
+    /// 다음 체인 기회는 규칙대로 돌아온다.
+    /// 올릴 수 있는 효과를 한 창에 모두 보여 주되, <b>강제</b>(무조건 사용) 효과와 <b>선택</b>(체인 걸 수 있는) 효과를
+    /// 색이 다른 얇은 선 상자로 나눠 묶는다. 강제 효과가 남아 있으면 패스할 수 없다.
+    /// 상자 영역이 <see cref="MaxListHeight"/>를 넘으면 창 높이는 고정하고 안쪽을 스크롤한다 (휠·끌기·스크롤바).
     /// </summary>
     public sealed class DecisionPanel : MonoBehaviour
     {
-        sealed class Row
-        {
-            public PendingTrigger Trigger;
-            public Button Button;
-            public TextMeshProUGUI Label;
-        }
+        public static readonly Color MandatoryLine = new Color(1f, 0.55f, 0.3f);
+        public static readonly Color OptionalLine = new Color(0.4f, 0.78f, 1f);
+        static readonly Color PanelColor = new Color(0.08f, 0.09f, 0.12f, 0.96f);
+        static readonly Color RowColor = new Color(0.17f, 0.19f, 0.25f);
+
+        const float RowHeight = 70f;
+        const float RowGap = 12f;
+        const float BoxPadding = 34f;
+        const float BoxWidth = 900f;
+        const float HeaderHeight = 130f;
+        const float FooterHeight = 120f;
+        /// <summary>상자 영역이 이보다 높으면 스크롤한다 (효과 약 5줄).</summary>
+        public const float MaxListHeight = 440f;
 
         BattleSession _session;
-        GameObject _root;
-        TextMeshProUGUI _title, _subtitle;
-        Button _confirm, _defaultOrder;
-        Transform _list;
-        readonly List<Row> _rows = new List<Row>();
-        readonly List<int> _order = new List<int>();
+        RectTransform _panel;
+        TMPro.TextMeshProUGUI _title, _subtitle;
+        Button _pass;
+        ScrollRect _scroll;
+        RectTransform _viewport, _list;
+        readonly List<GameObject> _content = new List<GameObject>();
         PendingDecision _shownFor;
-        /// <summary>선택 효과 1개뿐이면 순서 대신 "발동 / 발동 안 함"만 묻는다.</summary>
-        bool _yesNo;
 
-        public bool IsOpen => _root != null && _root.activeSelf;
-        public IReadOnlyList<int> CurrentOrder => _order;
+        public bool IsOpen => _panel != null && _panel.gameObject.activeSelf;
+        public IReadOnlyList<int> Options => _shownFor?.Options ?? (IReadOnlyList<int>)new int[0];
+        /// <summary>지금 창에 보이는 강제·선택 효과 수 (테스트·확인용).</summary>
+        public int MandatoryShown { get; private set; }
+        public int OptionalShown { get; private set; }
+        /// <summary>효과가 많아 스크롤 중인가.</summary>
+        public bool IsScrollable => _scroll != null && _scroll.vertical;
+
+        /// <summary>스크롤 위치 (1 = 맨 위, 0 = 맨 아래).</summary>
+        public void ScrollTo(float normalized)
+        {
+            if (_scroll != null)
+                _scroll.verticalNormalizedPosition = Mathf.Clamp01(normalized);
+        }
 
         public void Init(BattleSession session, Transform canvas)
         {
             _session = session;
-            var panel = UiFactory.Panel(canvas, "DecisionPanel", new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(980, 640),
-                new Color(0.08f, 0.09f, 0.12f, 0.94f));
-            _root = panel.gameObject;
-            _title = UiFactory.Text(panel.transform, "Title", "", new Vector2(0.5f, 1f), new Vector2(0, -50), new Vector2(900, 60), 40);
-            _subtitle = UiFactory.Text(panel.transform, "Subtitle", "", new Vector2(0.5f, 1f), new Vector2(0, -105), new Vector2(900, 50), 24);
+            _panel = UiFactory.Panel(canvas, "DecisionPanel", new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(980, 600), PanelColor).rectTransform;
+            _title = UiFactory.Text(_panel, "Title", "", new Vector2(0.5f, 1f), new Vector2(0, -46), new Vector2(900, 60), 38);
+            _subtitle = UiFactory.Text(_panel, "Subtitle", "", new Vector2(0.5f, 1f), new Vector2(0, -96), new Vector2(900, 44), 23);
             _subtitle.color = new Color(1f, 1f, 1f, 0.7f);
-            _list = UiFactory.Rect(panel.transform, "List", new Vector2(0.5f, 0.5f), new Vector2(0, 10), new Vector2(900, 380));
-            _defaultOrder = UiFactory.Button(panel.transform, "Default", "제시 순서대로", new Vector2(0.5f, 0f), new Vector2(-170, 70),
-                new Vector2(300, 76), new Color(0.3f, 0.34f, 0.42f), ChooseDefault, 28f);
-            _confirm = UiFactory.Button(panel.transform, "Confirm", "확정", new Vector2(0.5f, 0f), new Vector2(170, 70),
-                new Vector2(300, 76), new Color(0.75f, 0.55f, 0.2f), Confirm, 30f);
-            _root.SetActive(false);
+            _pass = UiFactory.Button(_panel, "Pass", "패스", new Vector2(0.5f, 0f), new Vector2(0, 62),
+                new Vector2(300, 72), new Color(0.3f, 0.34f, 0.42f), Pass, 30f);
+            BuildScrollArea();
+            _panel.gameObject.SetActive(false);
+        }
+
+        /// <summary>상자들이 들어갈 스크롤 영역: 보이는 창(viewport, 잘라내기) + 내용(list) + 오른쪽 세로 스크롤바.</summary>
+        void BuildScrollArea()
+        {
+            _viewport = UiFactory.Rect(_panel, "Viewport", new Vector2(0.5f, 1f), Vector2.zero, new Vector2(BoxWidth + 40f, MaxListHeight));
+            _viewport.pivot = new Vector2(0.5f, 1f);
+            _viewport.anchoredPosition = new Vector2(0, -HeaderHeight + 10f);
+            _viewport.gameObject.AddComponent<RectMask2D>();
+            // 빈 곳에서도 휠·끌기를 받도록 투명한 바탕
+            _viewport.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+
+            _list = UiFactory.Rect(_viewport, "List", new Vector2(0.5f, 1f), Vector2.zero, new Vector2(BoxWidth + 40f, 0));
+            _list.pivot = new Vector2(0.5f, 1f);
+
+            var bar = UiFactory.Panel(_panel, "Scrollbar", new Vector2(1f, 1f), Vector2.zero, new Vector2(10f, MaxListHeight), new Color(1, 1, 1, 0.08f));
+            bar.rectTransform.pivot = new Vector2(1f, 1f);
+            bar.rectTransform.anchoredPosition = new Vector2(-14f, -HeaderHeight + 10f);
+            var handle = UiFactory.Panel(bar.transform, "Handle", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, new Color(1, 1, 1, 0.45f));
+            handle.rectTransform.anchorMin = Vector2.zero;
+            handle.rectTransform.anchorMax = Vector2.one;
+            var scrollbar = bar.gameObject.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollbar.handleRect = handle.rectTransform;
+            scrollbar.targetGraphic = handle;
+
+            _scroll = _viewport.gameObject.AddComponent<ScrollRect>();
+            _scroll.viewport = _viewport;
+            _scroll.content = _list;
+            _scroll.horizontal = false;
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
+            _scroll.scrollSensitivity = 40f;
+            _scroll.verticalScrollbar = scrollbar;
+            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
         }
 
         void Update()
@@ -60,8 +109,8 @@ namespace TCG.Client.Interaction
             var decision = _session.HumanHasDecision ? _session.State.Decision : null;
             if (decision == null)
             {
-                if (_root.activeSelf)
-                    _root.SetActive(false);
+                if (_panel.gameObject.activeSelf)
+                    _panel.gameObject.SetActive(false);
                 _shownFor = null;
                 return;
             }
@@ -72,119 +121,97 @@ namespace TCG.Client.Interaction
         void Open(PendingDecision decision)
         {
             _shownFor = decision;
-            _order.Clear();
-            foreach (var row in _rows)
-                Destroy(row.Button.gameObject);
-            _rows.Clear();
-            _root.SetActive(true);
+            foreach (var go in _content)
+                Destroy(go);
+            _content.Clear();
+            _panel.gameObject.SetActive(true);
 
-            if (decision.Type == DecisionType.ChainResponse)
-            {
-                _title.text = "체인에 대응하시겠습니까?";
-                _subtitle.text = "대응할 수 있는 효과가 없으면 자동으로 넘어갑니다.";
-                UiFactory.SetLabel(_confirm, "패스");
-                _defaultOrder.gameObject.SetActive(false);
-                _confirm.interactable = true;
-                return;
-            }
-
-            _defaultOrder.gameObject.SetActive(true);
-            var only = decision.Options.Count == 1 ? _session.State.PendingTriggers.Find(t => t.Id == decision.Options[0]) : null;
-            _yesNo = only != null && only.IsOptional;
-            if (_yesNo)
-            {
-                var source = _session.State.GetEntity(only.SourceId);
-                var effect = Core.Effects.EffectLookup.Get(source, only.EffectIndex, _session.Engine.Registry);
-                _title.text = "효과를 발동하시겠습니까?";
-                _subtitle.text = $"{source?.Definition.Name} — {EffectText.Describe(effect)}";
-                UiFactory.SetLabel(_defaultOrder, "발동 안 함");
-                UiFactory.SetLabel(_confirm, "발동");
-                _confirm.interactable = true;
-                _order.Add(only.Id);
-                return;
-            }
-
-            _title.text = "효과를 체인에 올릴 순서를 고르세요";
-            _subtitle.text = "고른 순서대로 체인 1, 2… (마지막 번호부터 처리). [선택] 효과는 빼도 됩니다.";
-            UiFactory.SetLabel(_defaultOrder, "제시 순서대로");
-            UiFactory.SetLabel(_confirm, "확정");
-
+            var mandatory = new List<(int index, PendingTrigger trigger)>();
+            var optional = new List<(int index, PendingTrigger trigger)>();
             for (int i = 0; i < decision.Options.Count; i++)
             {
-                var trigger = _session.State.PendingTriggers.Find(t => t.Id == decision.Options[i]);
-                if (trigger == null)
+                var t = _session.State.PendingTriggers.Find(p => p.Id == decision.Options[i]);
+                if (t == null)
                     continue;
-                var row = new Row { Trigger = trigger };
-                row.Button = UiFactory.Button(_list, $"Option {trigger.Id}", "", new Vector2(0.5f, 1f), new Vector2(0, -40 - i * 86),
-                    new Vector2(880, 74), new Color(0.2f, 0.23f, 0.3f), () => Toggle(row), 26f);
-                row.Label = row.Button.GetComponentInChildren<TextMeshProUGUI>();
-                _rows.Add(row);
+                (t.IsOptional ? optional : mandatory).Add((i, t));
             }
-            Redraw();
+            MandatoryShown = mandatory.Count;
+            OptionalShown = optional.Count;
+
+            _title.text = $"체인 {_session.State.Chain.Count + 1}에 올릴 효과를 고르세요";
+            _subtitle.text = decision.CanPass
+                ? "하나만 올릴 수 있습니다. 올리지 않으려면 패스."
+                : "하나만 올릴 수 있습니다. 무조건 사용 효과가 남아 있어 패스할 수 없습니다.";
+            _pass.interactable = decision.CanPass;
+
+            // 내용(list) 안에서 위에서부터: 강제 상자 → 선택 상자. 넘치면 창 높이를 고정하고 스크롤.
+            float y = -20f;
+            if (mandatory.Count > 0)
+                y = Group(mandatory, "무조건 사용", MandatoryLine, y);
+            if (optional.Count > 0)
+                y = Group(optional, "체인 걸 수 있음", OptionalLine, y);
+
+            float contentHeight = -y;
+            float visible = Mathf.Min(contentHeight, MaxListHeight);
+            _list.sizeDelta = new Vector2(_list.sizeDelta.x, contentHeight);
+            _viewport.sizeDelta = new Vector2(_viewport.sizeDelta.x, visible);
+            _scroll.verticalScrollbar.GetComponent<RectTransform>().sizeDelta = new Vector2(10f, visible);
+            _scroll.vertical = contentHeight > MaxListHeight + 0.5f;
+            _scroll.verticalScrollbar.gameObject.SetActive(_scroll.vertical);
+            _list.anchoredPosition = Vector2.zero;
+            _scroll.verticalNormalizedPosition = 1f;
+            _panel.sizeDelta = new Vector2(980, HeaderHeight + visible + FooterHeight - 10f);
         }
 
-        void Toggle(Row row)
+        /// <summary>얇은 선 상자 하나에 효과 버튼들을 넣는다. 다음 상자를 놓을 y를 돌려준다.</summary>
+        float Group(List<(int index, PendingTrigger trigger)> items, string label, Color line, float top)
         {
-            int id = row.Trigger.Id;
-            if (_order.Contains(id))
-                _order.Remove(id);
-            else
-                _order.Add(id);
-            Redraw();
-        }
+            float height = BoxPadding + items.Count * (RowHeight + RowGap) - RowGap + 18f;
+            var box = UiFactory.OutlineBox(_list, $"Box {label}", new Vector2(0.5f, 1f), new Vector2(0, top - height * 0.5f),
+                new Vector2(BoxWidth, height), line, label, PanelColor);
+            _content.Add(box.gameObject);
 
-        void Redraw()
-        {
-            foreach (var row in _rows)
+            for (int k = 0; k < items.Count; k++)
             {
-                var source = _session.State.GetEntity(row.Trigger.SourceId);
-                var effect = Core.Effects.EffectLookup.Get(source, row.Trigger.EffectIndex, _session.Engine.Registry);
-                int position = _order.IndexOf(row.Trigger.Id);
-                string slot = position >= 0 ? $"<color=#FFD24D>체인 {position + 1}</color>   " : "            ";
-                string kind = row.Trigger.IsOptional ? "[선택]" : "[강제]";
-                row.Label.text = $"{slot}{kind} {source?.Definition.Name} — {EffectText.Describe(effect)}";
-                row.Button.image.color = position >= 0 ? new Color(0.32f, 0.36f, 0.24f) : new Color(0.2f, 0.23f, 0.3f);
+                int index = items[k].index;
+                var row = UiFactory.Button(box, $"Option {items[k].trigger.Id}", Describe(items[k].trigger),
+                    new Vector2(0.5f, 1f), new Vector2(0, -BoxPadding - RowHeight * 0.5f - k * (RowHeight + RowGap)),
+                    new Vector2(BoxWidth - 40f, RowHeight), RowColor, () => ActivateOption(index), 25f);
+                // 행 왼쪽에 상자 색 띠로 한 번 더 구분
+                UiFactory.Panel(row.transform, "Stripe", new Vector2(0f, 0.5f), new Vector2(3f, 0), new Vector2(6f, RowHeight), line).raycastTarget = false;
             }
-            _confirm.interactable = AllMandatoryChosen();
+            return top - height - 26f;
         }
 
-        bool AllMandatoryChosen()
+        string Describe(PendingTrigger trigger)
         {
-            foreach (var row in _rows)
-            {
-                if (!row.Trigger.IsOptional && !_order.Contains(row.Trigger.Id))
-                    return false;
-            }
-            return true;
+            var source = _session.State.GetEntity(trigger.SourceId);
+            var effect = Core.Effects.EffectLookup.Get(source, trigger.EffectIndex, _session.Engine.Registry);
+            return $"{source?.Definition.Name} — {EffectText.Describe(effect)}";
         }
 
-        /// <summary>제시된 순서대로 모두 고른다. "발동 / 발동 안 함" 창에서는 "발동 안 함" 버튼.</summary>
-        public void ChooseDefault()
-        {
-            if (_yesNo)
-            {
-                _order.Clear();
-                Confirm();
-                return;
-            }
-            _order.Clear();
-            foreach (var row in _rows)
-                _order.Add(row.Trigger.Id);
-            Redraw();
-        }
-
-        public void Confirm()
+        /// <summary>선택지 index번 효과를 체인에 올린다.</summary>
+        public void ActivateOption(int index)
         {
             var decision = _session.State.Decision;
-            if (decision == null)
+            if (decision == null || index < 0 || index >= decision.Options.Count)
                 return;
-            Command command = decision.Type == DecisionType.ChainResponse
-                ? new PassChainCommand(_session.Human)
-                : (Command)new ChooseTriggersCommand(_session.Human, new List<int>(_order));
+            Submit(new ChainActivateCommand(_session.Human, decision.Options[index]));
+        }
+
+        public void Pass() => Submit(new PassChainCommand(_session.Human));
+
+        void Submit(Command command)
+        {
             if (_session.TrySubmit(command, out var reason))
-                _root.SetActive(false);
+            {
+                _panel.gameObject.SetActive(false);
+                _shownFor = null;
+            }
             else
+            {
                 _subtitle.text = reason;
+            }
         }
     }
 }

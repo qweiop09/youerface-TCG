@@ -155,8 +155,8 @@ namespace TCG.Tests.Core
 
             g.Play(spell);
             var options = g.State.Decision.Options;
-            // 체인 1 = 상대 영웅 피해, 체인 2 = 내 영웅 피해 → 체인 2가 먼저 처리되어 내가 진다.
-            g.Apply(new ChooseTriggersCommand(0, new[] { options[1], options[0] }));
+            // 체인 1 = 상대 영웅 피해(내가 고름), 체인 2 = 내 영웅 피해(남은 강제 효과 자동) → 체인 2가 먼저 처리되어 내가 진다.
+            g.Apply(new ChainActivateCommand(0, options[1]));
 
             Assert.That(g.State.Phase, Is.EqualTo(GamePhase.Finished));
             Assert.That(g.State.WinnerIndex, Is.EqualTo(1));

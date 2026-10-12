@@ -107,10 +107,18 @@ namespace TCG.Tests.Core
             g.Play(g.AddToHand(0, TestCards.Spell("c_mix", 0,
                 TestCards.Effect(TriggerType.OnEnter, TargetType.EnemyHero, ActionType.Damage, 1), optional)));
 
-            var answers = LegalCommands.Generate(g.Engine, g.State, 0).Cast<ChooseTriggersCommand>().ToList();
-            // 선택 효과 포함(2개 → 순서 2가지) + 미포함(1가지) = 3
-            Assert.That(answers.Count, Is.EqualTo(3));
+            var answers = LegalCommands.Generate(g.Engine, g.State, 0);
+            // 강제 효과가 남아 있으므로 패스는 없고, 두 효과 중 하나를 올리는 답 2개
+            Assert.That(answers.Count, Is.EqualTo(2));
+            Assert.That(answers.All(a => a is ChainActivateCommand), Is.True);
             Assert.That(answers.All(a => g.Validate(a).IsValid), Is.True);
+
+            // 강제 효과를 올리고 나면 선택 효과만 남는다 → 올리기 또는 패스
+            var mandatory = g.State.PendingTriggers.First(t => !t.IsOptional).Id;
+            g.Apply(new ChainActivateCommand(0, mandatory));
+            var next = LegalCommands.Generate(g.Engine, g.State, 0);
+            Assert.That(next.Count, Is.EqualTo(2));
+            Assert.That(next.OfType<PassChainCommand>().Count(), Is.EqualTo(1));
         }
 
         [TestCase(AiDifficulty.Easy)]

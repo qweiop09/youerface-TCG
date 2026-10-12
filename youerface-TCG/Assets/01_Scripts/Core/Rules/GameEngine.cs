@@ -94,7 +94,7 @@ namespace TCG.Core.Rules
                 case PlayCardCommand play: return ValidatePlay(state, play);
                 case AttackCommand attack: return ValidateAttack(state, attack);
                 case EndTurnCommand _: return ValidationResult.Ok;
-                case ChooseTriggersCommand _:
+                case ChainActivateCommand _:
                 case PassChainCommand _:
                     return ValidationResult.Fail("선택할 것이 없습니다.");
                 default: return ValidationResult.Fail("알 수 없는 명령입니다.");
@@ -110,37 +110,17 @@ namespace TCG.Core.Rules
 
             switch (command)
             {
-                case ChooseTriggersCommand choose when decision.Type == DecisionType.ChooseTriggers:
-                    return ValidateTriggerChoice(state, decision, choose);
-                case PassChainCommand _ when decision.Type == DecisionType.ChainResponse:
-                    return ValidationResult.Ok;
+                case ChainActivateCommand activate:
+                    return Contains(decision.Options, activate.TriggerId)
+                        ? ValidationResult.Ok
+                        : ValidationResult.Fail("체인에 올릴 수 없는 효과입니다.");
+                case PassChainCommand _:
+                    return decision.CanPass
+                        ? ValidationResult.Ok
+                        : ValidationResult.Fail("강제 효과를 먼저 체인에 올려야 합니다.");
                 default:
-                    return ValidationResult.Fail("먼저 선택을 끝내야 합니다.");
+                    return ValidationResult.Fail("먼저 체인 선택을 끝내야 합니다.");
             }
-        }
-
-        /// <summary>순서 목록은 선택지 안에서 중복 없이, 강제 효과는 모두 포함해야 한다.</summary>
-        static ValidationResult ValidateTriggerChoice(GameState state, PendingDecision decision, ChooseTriggersCommand choose)
-        {
-            var seen = new List<int>();
-            for (int i = 0; i < choose.TriggerIds.Count; i++)
-            {
-                int id = choose.TriggerIds[i];
-                if (seen.Contains(id))
-                    return ValidationResult.Fail("같은 효과를 두 번 고를 수 없습니다.");
-                if (!Contains(decision.Options, id))
-                    return ValidationResult.Fail("고를 수 없는 효과입니다.");
-                seen.Add(id);
-            }
-
-            for (int i = 0; i < decision.Options.Count; i++)
-            {
-                int id = decision.Options[i];
-                var trigger = FindPending(state, id);
-                if (trigger != null && !trigger.IsOptional && !seen.Contains(id))
-                    return ValidationResult.Fail("강제 효과는 모두 체인에 올려야 합니다.");
-            }
-            return ValidationResult.Ok;
         }
 
         static bool Contains(IReadOnlyList<int> list, int value)
@@ -151,16 +131,6 @@ namespace TCG.Core.Rules
                     return true;
             }
             return false;
-        }
-
-        static PendingTrigger FindPending(GameState state, int id)
-        {
-            for (int i = 0; i < state.PendingTriggers.Count; i++)
-            {
-                if (state.PendingTriggers[i].Id == id)
-                    return state.PendingTriggers[i];
-            }
-            return null;
         }
 
         ValidationResult ValidatePlay(GameState state, PlayCardCommand cmd)
@@ -298,8 +268,8 @@ namespace TCG.Core.Rules
                     ctx.CollectBoardTriggers(state.ActivePlayerIndex, TriggerType.OnTurnEnd);
                     state.PendingActions.Add(new PendingAction(PendingActionType.FinishEndTurn, state.ActivePlayerIndex));
                     break;
-                case ChooseTriggersCommand choose:
-                    ctx.ApplyTriggerChoice(choose.PlayerIndex, choose.TriggerIds);
+                case ChainActivateCommand activate:
+                    ctx.ActivateFromDecision(activate.TriggerId);
                     break;
                 case PassChainCommand _:
                     ctx.PassChain();

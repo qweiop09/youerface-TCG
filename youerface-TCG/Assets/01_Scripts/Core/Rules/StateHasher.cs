@@ -55,7 +55,8 @@ namespace TCG.Core.Rules
         static void AddChain(ref ulong h, GameState state)
         {
             Add(ref h, state.ChainClosed ? 1 : 0);
-            Add(ref h, state.ResponsePasses);
+            Add(ref h, state.PriorityPlayer);
+            Add(ref h, state.PriorityPasses);
             Add(ref h, state.NextTriggerId);
             Add(ref h, state.ResolutionCount);
 
@@ -92,6 +93,7 @@ namespace TCG.Core.Rules
             if (decision != null)
             {
                 Add(ref h, decision.PlayerIndex);
+                Add(ref h, decision.CanPass ? 1 : 0);
                 Add(ref h, decision.Options.Count);
                 for (int i = 0; i < decision.Options.Count; i++)
                     Add(ref h, decision.Options[i]);

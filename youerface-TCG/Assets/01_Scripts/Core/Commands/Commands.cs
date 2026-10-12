@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace TCG.Core.Commands
 {
     /// <summary>플레이어 입력 1건. 검증·적용은 <see cref="Rules.GameEngine"/>이 한다.</summary>
@@ -49,21 +47,18 @@ namespace TCG.Core.Commands
         public EndTurnCommand(int playerIndex) : base(playerIndex) { }
     }
 
-    /// <summary>
-    /// 동시에 발동한 내 효과들을 체인에 올리는 순서 (앞이 먼저 올라감 = 나중에 처리).
-    /// 강제 효과는 모두 포함해야 하고, 선택 효과는 빼면 발동하지 않는다.
-    /// </summary>
-    public sealed class ChooseTriggersCommand : Command
+    /// <summary>체인 기회에서 대기 효과 하나를 체인에 올린다 (GameDesign §7.2: 한 번에 하나).</summary>
+    public sealed class ChainActivateCommand : Command
     {
-        public IReadOnlyList<int> TriggerIds { get; }
+        public int TriggerId { get; }
 
-        public ChooseTriggersCommand(int playerIndex, IReadOnlyList<int> triggerIds) : base(playerIndex)
+        public ChainActivateCommand(int playerIndex, int triggerId) : base(playerIndex)
         {
-            TriggerIds = triggerIds ?? new int[0];
+            TriggerId = triggerId;
         }
     }
 
-    /// <summary>체인에 대응하지 않고 패스.</summary>
+    /// <summary>체인 기회에서 패스. 올리지 않은 강제 효과가 있으면 할 수 없다.</summary>
     public sealed class PassChainCommand : Command
     {
         public PassChainCommand(int playerIndex) : base(playerIndex) { }

@@ -61,6 +61,45 @@ namespace TCG.Client.Common
             return button;
         }
 
+        /// <summary>
+        /// 얇은 선 상자: 안이 비어 있는 테두리 (네 변을 얇은 Image로). 왼쪽 위 테두리에 이름표를 얹는다.
+        /// 반환한 RectTransform 안에 내용을 넣는다.
+        /// </summary>
+        public static RectTransform OutlineBox(Transform parent, string name, Vector2 anchor, Vector2 position, Vector2 size,
+            Color lineColor, string label, Color background, float thickness = 2f)
+        {
+            var box = Rect(parent, name, anchor, position, size);
+            Edge(box, "Top", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, thickness), lineColor);
+            Edge(box, "Bottom", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, thickness), lineColor);
+            Edge(box, "Left", new Vector2(0, 0), new Vector2(0, 1), new Vector2(thickness, 0), lineColor);
+            Edge(box, "Right", new Vector2(1, 0), new Vector2(1, 1), new Vector2(thickness, 0), lineColor);
+
+            if (!string.IsNullOrEmpty(label))
+            {
+                // 선을 끊고 그 위에 이름표 (배경색으로 선을 가린다)
+                var tag = Panel(box, "Label", new Vector2(0, 1), new Vector2(24 + label.Length * 13, 0), new Vector2(40 + label.Length * 26, 34), background);
+                tag.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                var text = Text(tag.transform, "Text", label, new Vector2(0.5f, 0.5f), Vector2.zero, tag.rectTransform.sizeDelta, 24);
+                text.color = lineColor;
+            }
+            return box;
+        }
+
+        static void Edge(RectTransform box, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 size, Color color)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(box, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = size;
+            var image = go.AddComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false;
+        }
+
         public static void SetLabel(Button button, string label) =>
             button.GetComponentInChildren<TextMeshProUGUI>().text = label;
     }

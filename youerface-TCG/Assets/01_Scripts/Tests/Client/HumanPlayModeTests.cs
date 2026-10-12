@@ -38,20 +38,20 @@ namespace TCG.Tests.Client
                 if (session.HumanHasDecision)
                 {
                     yield return null; // 창이 열리도록 한 프레임
-                    if (session.HumanHasDecision && session.State.Decision.Type == DecisionType.ChooseTriggers)
+                    if (session.HumanHasDecision)
                     {
-                        Assert.That(bootstrap.Decisions.IsOpen, Is.True, "체인 선택 창이 열려야 함");
+                        Assert.That(bootstrap.Decisions.IsOpen, Is.True, "체인 기회 창이 열려야 함");
                         string dir = System.Environment.GetEnvironmentVariable("TCG_CAPTURE_DIR");
                         if (dir != null && panelUses == 0)
                         {
                             yield return null;
                             PresentationPlayModeTests.Capture(System.IO.Path.Combine(dir, "decision_panel.png"));
                         }
-                        // "발동 / 발동 안 함" 창이면 그대로 확정(= 발동), 순서 창이면 제시 순서대로 고른 뒤 확정.
-                        if (bootstrap.Decisions.CurrentOrder.Count == 0)
-                            bootstrap.Decisions.ChooseDefault();
-                        if (session.HumanHasDecision)
-                            bootstrap.Decisions.Confirm();
+                        // 첫 선택지를 체인에 올린다 (없으면 패스).
+                        if (bootstrap.Decisions.Options.Count > 0)
+                            bootstrap.Decisions.ActivateOption(0);
+                        else
+                            bootstrap.Decisions.Pass();
                         panelUses++;
                     }
                 }

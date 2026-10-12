@@ -42,8 +42,10 @@ namespace TCG.Core.State
         public List<ChainLink> Chain { get; } = new List<ChainLink>();
         /// <summary>체인이 닫혀 처리 중인가.</summary>
         public bool ChainClosed { get; set; }
-        /// <summary>현재 대응 기회에서 연속으로 패스한 수 (2면 체인이 닫힘).</summary>
-        public int ResponsePasses { get; set; }
+        /// <summary>체인 기회를 가진 플레이어. 체인을 쌓는 중이 아니면 -1.</summary>
+        public int PriorityPlayer { get; set; } = -1;
+        /// <summary>연속으로 패스한 수 (2면 체인이 닫힘).</summary>
+        public int PriorityPasses { get; set; }
         /// <summary>체인에 올라가기를 기다리는 효과.</summary>
         public List<PendingTrigger> PendingTriggers { get; } = new List<PendingTrigger>();
         /// <summary>플레이어 선택 대기. null이면 일반 행동을 받을 수 있다.</summary>
@@ -127,7 +129,8 @@ namespace TCG.Core.State
             for (int i = 0; i < Chain.Count; i++)
                 copy.Chain.Add(Chain[i].Clone());
             copy.ChainClosed = ChainClosed;
-            copy.ResponsePasses = ResponsePasses;
+            copy.PriorityPlayer = PriorityPlayer;
+            copy.PriorityPasses = PriorityPasses;
             for (int i = 0; i < PendingTriggers.Count; i++)
                 copy.PendingTriggers.Add(PendingTriggers[i].Clone());
             copy.Decision = Decision;

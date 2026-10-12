@@ -35,8 +35,8 @@ namespace TCG.Tests.Core
             {
                 // 순서 선택은 시드에 따라 뒤집어서 여러 순서를 섞어 본다.
                 var d = state.Decision;
-                if (d.Type == DecisionType.ChooseTriggers && state.TurnNumber % 2 == 0)
-                    return new ChooseTriggersCommand(d.PlayerIndex, d.Options.Reverse().ToList());
+                if (d.Options.Count > 1 && state.TurnNumber % 2 == 0)
+                    return new ChainActivateCommand(d.PlayerIndex, d.Options[d.Options.Count - 1]);
                 return TestGame.DefaultAnswer(d);
             }
 
