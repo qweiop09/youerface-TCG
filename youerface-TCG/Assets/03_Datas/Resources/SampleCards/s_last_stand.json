@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "s_last_stand",
+  "name": "최후의 저항",
+  "type": "Spell",
+  "cost": 1,
+  "keywords": [
+    "Exhaust"
+  ],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "FriendlyHero"
+      },
+      "action": {
+        "type": "Heal",
+        "amount": 6
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

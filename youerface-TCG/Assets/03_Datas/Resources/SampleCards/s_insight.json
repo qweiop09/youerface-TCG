@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "s_insight",
+  "name": "통찰",
+  "type": "Spell",
+  "cost": 3,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "FriendlyHero"
+      },
+      "action": {
+        "type": "Draw",
+        "amount": 2
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

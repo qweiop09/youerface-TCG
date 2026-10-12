@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "id": "s_kindle",
+  "name": "불씨 피우기",
+  "type": "Spell",
+  "cost": 2,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "Self"
+      },
+      "action": {
+        "type": "CreateSummon",
+        "summon": {
+          "name": "불씨",
+          "type": "Summon",
+          "cost": 0,
+          "usage": 2,
+          "onDuplicate": "RefreshUsage",
+          "keywords": [],
+          "art": {},
+          "sounds": {},
+          "presentation": {
+            "enter": "default",
+            "exit": "default"
+          },
+          "effects": [
+            {
+              "trigger": {
+                "type": "OnTurnEnd"
+              },
+              "activation": "Mandatory",
+              "conditions": [],
+              "target": {
+                "type": "EnemyHero"
+              },
+              "action": {
+                "type": "Damage",
+                "amount": 1
+              },
+              "presentation": {
+                "enabled": true,
+                "activation": "default",
+                "resolution": "default",
+                "hitMode": "Simultaneous"
+              }
+            }
+          ]
+        }
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "s_cleric",
+  "name": "순례 사제",
+  "type": "Minion",
+  "cost": 3,
+  "attack": 2,
+  "health": 3,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "Chosen"
+      },
+      "action": {
+        "type": "Heal",
+        "amount": 3
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

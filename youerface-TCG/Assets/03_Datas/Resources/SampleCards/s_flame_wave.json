@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "s_flame_wave",
+  "name": "화염 파도",
+  "type": "Spell",
+  "cost": 4,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "AllEnemyMinions"
+      },
+      "action": {
+        "type": "Damage",
+        "amount": 2
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

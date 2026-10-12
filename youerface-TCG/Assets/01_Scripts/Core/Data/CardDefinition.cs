@@ -9,8 +9,6 @@ namespace TCG.Core.Data
     /// </summary>
     public sealed class CardDefinition
     {
-        public const string DefaultPresentationStyle = "default";
-
         /// <summary>카드 ID. 소환물처럼 다른 카드 안에 포함된 정의는 null일 수 있다.</summary>
         public string Id { get; set; }
         public string Name { get; set; }
@@ -29,8 +27,8 @@ namespace TCG.Core.Data
         public List<Keyword> Keywords { get; set; } = new List<Keyword>();
         public CardArt Art { get; set; } = new CardArt();
         public CardSounds Sounds { get; set; } = new CardSounds();
-        /// <summary>연출 방식 확장용 자리. 현재 "default"(카드 그대로 표시)만.</summary>
-        public string PresentationStyle { get; set; } = DefaultPresentationStyle;
+        /// <summary>등장·퇴장 연출 설정 (GameDesign §7.3).</summary>
+        public CardPresentation Presentation { get; set; } = new CardPresentation();
         public List<EffectDefinition> Effects { get; set; } = new List<EffectDefinition>();
     }
 

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "s_elder_dragon",
+  "name": "고룡",
+  "type": "Minion",
+  "cost": 7,
+  "attack": 6,
+  "health": 6,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "AllEnemyMinions"
+      },
+      "action": {
+        "type": "Damage",
+        "amount": 2
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Sequential"
+      }
+    }
+  ]
+}

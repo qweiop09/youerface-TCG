@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "s_assassin",
+  "name": "그림자 자객",
+  "type": "Minion",
+  "cost": 3,
+  "attack": 3,
+  "health": 2,
+  "keywords": [
+    "Stealth"
+  ],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": []
+}

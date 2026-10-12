@@ -86,6 +86,57 @@ namespace TCG.Core.State
             return entity;
         }
 
+        /// <summary>
+        /// 완전한 복사본. AI가 수를 미리 계산해 볼 때 쓴다. 카드 정의(CardDefinition)는 바뀌지 않으므로 공유한다.
+        /// </summary>
+        public GameState Clone()
+        {
+            var copy = new GameState(Rules, 1);
+            copy.Rng.RestoreState(Rng.SaveState());
+
+            copy._entityTable.Clear();
+            for (int i = 0; i < _entityTable.Count; i++)
+                copy._entityTable.Add(_entityTable[i]?.Clone());
+            copy._nextEntityId = _nextEntityId;
+
+            for (int p = 0; p < PlayerCount; p++)
+            {
+                var from = _players[p];
+                var to = copy._players[p];
+                to.Hero.Health = from.Hero.Health;
+                to.Hero.MaxHealth = from.Hero.MaxHealth;
+                to.MaxCost = from.MaxCost;
+                to.AvailableCost = from.AvailableCost;
+                to.FatigueCount = from.FatigueCount;
+                to.TurnsTaken = from.TurnsTaken;
+
+                for (int z = 0; z < from.Zones.Count; z++)
+                {
+                    var source = from.Zones[z].Entities;
+                    var target = to.Zones[z];
+                    for (int i = 0; i < source.Count; i++)
+                        target.TryAdd(copy.GetEntity(source[i].Id));
+                }
+            }
+
+            copy.Phase = Phase;
+            copy.ActivePlayerIndex = ActivePlayerIndex;
+            copy.TurnNumber = TurnNumber;
+            copy.WinnerIndex = WinnerIndex;
+
+            for (int i = 0; i < Chain.Count; i++)
+                copy.Chain.Add(Chain[i].Clone());
+            copy.ChainClosed = ChainClosed;
+            copy.ResponsePasses = ResponsePasses;
+            for (int i = 0; i < PendingTriggers.Count; i++)
+                copy.PendingTriggers.Add(PendingTriggers[i].Clone());
+            copy.Decision = Decision;
+            copy.PendingActions.AddRange(PendingActions);
+            copy.NextTriggerId = NextTriggerId;
+            copy.ResolutionCount = ResolutionCount;
+            return copy;
+        }
+
         /// <summary>ID로 카드를 찾는다. 어느 영역에도 없는 카드(사라진 소환물 등)도 찾는다.</summary>
         public Entity GetEntity(int entityId)
         {

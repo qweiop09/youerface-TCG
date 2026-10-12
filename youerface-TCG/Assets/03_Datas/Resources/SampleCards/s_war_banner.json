@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "id": "s_war_banner",
+  "name": "전쟁 깃발",
+  "type": "Field",
+  "cost": 3,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "Aura"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "AllFriendlyMinions"
+      },
+      "action": {
+        "type": "ModifyAttack",
+        "amount": 1
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    },
+    {
+      "trigger": {
+        "type": "OnExit"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "FriendlyHero"
+      },
+      "action": {
+        "type": "Draw",
+        "amount": 1
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

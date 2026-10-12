@@ -13,7 +13,7 @@ namespace TCG.Tests.Core
     /// </summary>
     public class ReplayTests
     {
-        static List<CardDefinition> MixedDeck()
+        internal static List<CardDefinition> MixedDeck()
         {
             var deck = new List<CardDefinition>();
             for (int i = 0; i < 6; i++)

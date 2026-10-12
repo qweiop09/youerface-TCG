@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "s_berserker",
+  "name": "광전사",
+  "type": "Minion",
+  "cost": 4,
+  "attack": 3,
+  "health": 4,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnDamaged"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "Self"
+      },
+      "action": {
+        "type": "ModifyAttack",
+        "amount": 1
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

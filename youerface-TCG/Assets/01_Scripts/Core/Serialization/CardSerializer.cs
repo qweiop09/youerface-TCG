@@ -11,7 +11,7 @@ namespace TCG.Core.Serialization
     /// </summary>
     public static class CardSerializer
     {
-        public const int CurrentSchemaVersion = 1;
+        public const int CurrentSchemaVersion = 2;
         public const string SchemaVersionProperty = "schemaVersion";
 
         public static string Serialize(CardDefinition card, bool indented = true)
@@ -68,7 +68,36 @@ namespace TCG.Core.Serialization
         /// </summary>
         static readonly Func<JObject, JObject>[] Migrations =
         {
+            MigrateV1ToV2,
         };
+
+        /// <summary>v1 → v2: 문자열 presentationStyle을 등장·퇴장 연출 설정 객체로 바꾼다 (효과 연출 설정은 기본값).</summary>
+        static JObject MigrateV1ToV2(JObject root)
+        {
+            MigrateCardV1ToV2(root);
+            return root;
+        }
+
+        static void MigrateCardV1ToV2(JObject card)
+        {
+            var style = card["presentationStyle"];
+            if (style != null)
+            {
+                string value = style.Type == JTokenType.String ? style.Value<string>() : "default";
+                card.Remove("presentationStyle");
+                card["presentation"] = new JObject { ["enter"] = value, ["exit"] = value };
+            }
+
+            // 소환물 정의는 효과 안에 들어 있으므로 함께 변환한다.
+            if (card["effects"] is JArray effects)
+            {
+                foreach (var effect in effects)
+                {
+                    if (effect?["action"]?["summon"] is JObject summon)
+                        MigrateCardV1ToV2(summon);
+                }
+            }
+        }
 
         /// <summary>fromVersion → CurrentSchemaVersion으로 한 단계씩 변환한다.</summary>
         static JObject Migrate(JObject root, int fromVersion)

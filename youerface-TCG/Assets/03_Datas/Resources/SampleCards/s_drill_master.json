@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "s_drill_master",
+  "name": "훈련 교관",
+  "type": "Companion",
+  "cost": 2,
+  "usage": 3,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnCardPlayed"
+      },
+      "activation": "Optional",
+      "conditions": [],
+      "target": {
+        "type": "EnemyHero"
+      },
+      "action": {
+        "type": "Damage",
+        "amount": 1
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

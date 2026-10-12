@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "s_iron_knight",
+  "name": "강철 기사",
+  "type": "Minion",
+  "cost": 4,
+  "attack": 3,
+  "health": 6,
+  "keywords": [
+    "Taunt"
+  ],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": []
+}

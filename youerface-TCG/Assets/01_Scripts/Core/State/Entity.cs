@@ -63,6 +63,28 @@ namespace TCG.Core.State
             Keywords = definition.Keywords != null ? new List<Keyword>(definition.Keywords) : new List<Keyword>();
         }
 
+        /// <summary>같은 ID의 복사본 (영역 위치는 복사하지 않음 — 영역에 넣을 때 정해진다).</summary>
+        public Entity Clone()
+        {
+            var copy = new Entity(Id, OwnerIndex, Definition)
+            {
+                BaseCost = BaseCost,
+                AuraCost = AuraCost,
+                BaseAttack = BaseAttack,
+                AuraAttack = AuraAttack,
+                BaseMaxHealth = BaseMaxHealth,
+                AuraHealth = AuraHealth,
+                Damage = Damage,
+                Usage = Usage,
+                PlayedThisTurn = PlayedThisTurn,
+                AttacksThisTurn = AttacksThisTurn,
+                SummonKey = SummonKey,
+            };
+            copy.Keywords.Clear();
+            copy.Keywords.AddRange(Keywords);
+            return copy;
+        }
+
         public bool HasKeyword(Keyword keyword) => Keywords.Contains(keyword);
 
         public bool IsDead => Health.HasValue && Health.Value <= 0;

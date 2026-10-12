@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "id": "s_fire_imp",
+  "name": "불꽃 임프",
+  "type": "Minion",
+  "cost": 3,
+  "attack": 3,
+  "health": 2,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "RandomEnemyMinion",
+        "count": 1
+      },
+      "action": {
+        "type": "Damage",
+        "amount": 2
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "s_firebolt",
+  "name": "화염탄",
+  "type": "Spell",
+  "cost": 2,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": [
+    {
+      "trigger": {
+        "type": "OnEnter"
+      },
+      "activation": "Mandatory",
+      "conditions": [],
+      "target": {
+        "type": "Chosen"
+      },
+      "action": {
+        "type": "Damage",
+        "amount": 3
+      },
+      "presentation": {
+        "enabled": true,
+        "activation": "default",
+        "resolution": "default",
+        "hitMode": "Simultaneous"
+      }
+    }
+  ]
+}

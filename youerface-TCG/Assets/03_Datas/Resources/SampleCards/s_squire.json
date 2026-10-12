@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "s_squire",
+  "name": "견습 기사",
+  "type": "Minion",
+  "cost": 1,
+  "attack": 1,
+  "health": 2,
+  "keywords": [],
+  "art": {},
+  "sounds": {},
+  "presentation": {
+    "enter": "default",
+    "exit": "default"
+  },
+  "effects": []
+}

@@ -33,6 +33,7 @@ youerface-TCG/Assets/
 │  │  ├─ Effects/               트리거·조건·대상·행동 블록 + 레지스트리
 │  │  ├─ Scoring/               ScoreCalculator (static), ScoreTable
 │  │  ├─ Random/                DeterministicRng
+│  │  ├─ AI/                    컴퓨터 플레이어 (EasyAi, SearchAi), 시야 제한(AiView), 가능한 명령 목록, 판세 평가
 │  │  └─ Serialization/         JSON 직렬화
 │  ├─ Client/                   TCG.Client.asmdef    (Core 참조)
 │  │  ├─ Board/                 영역·카드 배치 뷰
@@ -46,7 +47,7 @@ youerface-TCG/Assets/
 │  └─ Tests/
 │     └─ Core/                  TCG.Core.Tests.asmdef (EditMode, Core 참조)
 ├─ 02_Prefabs/
-├─ 03_Datas/                    RuleConfig 기본값, 기본 제공 카드 JSON
+├─ 03_Datas/Resources/          샘플 카드(SampleCards/*.json)·덱(SampleDecks/*.json). Resources.Load로 읽음
 ├─ 04_TimeLines/
 └─ 05_Animations/
 ```
@@ -81,7 +82,7 @@ youerface-TCG/Assets/
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "c_7f3a...",
   "name": "불꽃 정령",
   "type": "Minion",
@@ -91,7 +92,7 @@ youerface-TCG/Assets/
   "keywords": ["Taunt"],
   "art":    { "image": "sha256:ab12..." },
   "sounds": { "enter": "sha256:cd34...", "exit": "sha256:ef56..." },
-  "presentationStyle": "default",
+  "presentation": { "enter": "default", "exit": "default" },
   "effects": [
     {
       "trigger":    { "type": "OnEnter" },
@@ -118,7 +119,8 @@ youerface-TCG/Assets/
 - `effects[].activation`: `Mandatory`(강제, 기본값) | `Optional`(선택). 없으면 강제로 읽는다.
 - `keywords`: `Taunt`(도발) | `Stealth`(은신) | `Vanguard`(선봉) | `Exhaust`(일회성, 주문 전용) | `TreasureChest`(보물상자). 붙일 수 있는 카드 종류는 레지스트리가 정하고 `CardValidator`가 검사한다.
 - **점수는 저장하지 않는다.** 항상 `ScoreCalculator.Calculate(card, scoreTable)`로 계산 (패치 시 자동 반영).
-- `presentationStyle`: 연출 방식 확장용 자리. 현재 `"default"`(카드 그대로 표시)만.
+- `presentation`(카드): 등장·퇴장 연출 종류(문자열 ID, 기본 `"default"`). 끌 수 없다. `effects[].presentation`: `enabled`(효과 연출 켜기/끄기), `activation`·`resolution`(발동·처리 연출 종류), `hitMode`(`Simultaneous` | `Sequential`, 광역 피격). GameDesign §7.3.
+- 스키마 v1 → v2: `presentationStyle` 문자열을 `presentation.enter/exit`로 옮긴다(중첩 소환물 포함). 덱 JSON은 별도 형식 버전(1): `{ schemaVersion, id, name, cards: [카드 ID…] }`.
 - 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다.
 - 스키마 변경 시 `schemaVersion`을 올리고 마이그레이션 코드를 둔다.
 
@@ -143,7 +145,7 @@ youerface-TCG/Assets/
 ## 5. 이벤트와 연출 — 개요만 (상세는 구현 전 사용자와 논의)
 
 - Core는 `GameEvent` 목록만 내보내고, 연출을 전혀 모른다.
-- Client의 연출 큐가 이벤트를 하나씩 꺼내, `이벤트 종류 + 카드의 presentationStyle`로 연출기(`IEventPresenter` 같은 것)를 골라 `await` 재생.
+- Client의 연출 큐가 이벤트를 하나씩 꺼내, `이벤트 종류 + 카드·효과의 presentation 설정`로 연출기(`IEventPresenter` 같은 것)를 골라 `await` 재생.
 - 연출 방식 추가 = 새 연출기 등록. 기존 코드 수정 없음.
 - 이 구조 덕분에 연출 스킵, 빠르게 감기, 리플레이가 가능하다.
 - 이전 프로젝트의 `TimelineDirector.PlayAsync`와 Binder 패턴(§8)을 Timeline 기반 연출기에 활용할 수 있다.

@@ -26,7 +26,9 @@ namespace TCG.Tests.Core
             Assert.That(restored.Art.Image, Is.EqualTo("sha256:ab12"));
             Assert.That(restored.Sounds.Enter, Is.EqualTo("sha256:cd34"));
             Assert.That(restored.Sounds.Exit, Is.EqualTo("sha256:ef56"));
-            Assert.That(restored.PresentationStyle, Is.EqualTo("default"));
+            Assert.That(restored.Presentation.Enter, Is.EqualTo("default"));
+            Assert.That(restored.Presentation.Exit, Is.EqualTo("default"));
+            Assert.That(restored.Effects[0].Presentation.Enabled, Is.True);
             Assert.That(restored.Effects, Has.Count.EqualTo(1));
             Assert.That(restored.Effects[0].Trigger.Type, Is.EqualTo(TriggerType.OnEnter));
             Assert.That(restored.Effects[0].Target.Type, Is.EqualTo(TargetType.RandomEnemyMinion));
@@ -79,14 +81,14 @@ namespace TCG.Tests.Core
             var json = JObject.Parse(CardSerializer.Serialize(TestCards.Field()));
 
             Assert.That(json["type"].Value<string>(), Is.EqualTo("Field"));
-            Assert.That(json["presentationStyle"].Value<string>(), Is.EqualTo("default"));
+            Assert.That(json["presentation"]["enter"].Value<string>(), Is.EqualTo("default"));
             Assert.That(json["attack"], Is.Null);
             Assert.That(json["health"], Is.Null);
             Assert.That(json["usage"], Is.Null);
         }
 
         [Test]
-        public void Deserialize_ArchitectureSampleJson()
+        public void Deserialize_ArchitectureSampleJson_V1IsMigrated()
         {
             const string json = @"{
                 ""schemaVersion"": 1,
@@ -159,6 +161,38 @@ namespace TCG.Tests.Core
                 ""trigger"": { ""type"": ""OnEnter"" }, ""target"": { ""type"": ""EnemyHero"" },
                 ""action"": { ""type"": ""Damage"", ""amount"": 1 } } ] }";
             Assert.That(CardSerializer.Deserialize(json).Effects[0].Activation, Is.EqualTo(EffectActivation.Mandatory));
+        }
+
+        [Test]
+        public void MigrateV1_PresentationStyleBecomesEnterExit_IncludingNestedSummon()
+        {
+            const string json = @"{ ""schemaVersion"": 1, ""type"": ""Spell"", ""presentationStyle"": ""fire"",
+                ""effects"": [ { ""trigger"": { ""type"": ""OnEnter"" }, ""target"": { ""type"": ""Self"" },
+                    ""action"": { ""type"": ""CreateSummon"", ""summon"": { ""type"": ""Summon"", ""usage"": 1,
+                        ""onDuplicate"": ""AddNew"", ""presentationStyle"": ""ice"" } } } ] }";
+
+            var card = CardSerializer.Deserialize(json);
+
+            Assert.That(card.Presentation.Enter, Is.EqualTo("fire"));
+            Assert.That(card.Presentation.Exit, Is.EqualTo("fire"));
+            Assert.That(card.Effects[0].Action.Summon.Presentation.Enter, Is.EqualTo("ice"));
+            Assert.That(card.Effects[0].Presentation.HitMode, Is.EqualTo(HitPresentationMode.Simultaneous));
+            Assert.That(JObject.Parse(CardSerializer.Serialize(card))["schemaVersion"].Value<int>(), Is.EqualTo(2));
+        }
+
+        [Test]
+        public void RoundTrip_EffectPresentationSettings()
+        {
+            var card = TestCards.FireSpirit();
+            card.Presentation.Exit = "shatter";
+            card.Effects[0].Presentation.Enabled = false;
+            card.Effects[0].Presentation.HitMode = HitPresentationMode.Sequential;
+
+            var restored = CardSerializer.Deserialize(CardSerializer.Serialize(card));
+
+            Assert.That(restored.Presentation.Exit, Is.EqualTo("shatter"));
+            Assert.That(restored.Effects[0].Presentation.Enabled, Is.False);
+            Assert.That(restored.Effects[0].Presentation.HitMode, Is.EqualTo(HitPresentationMode.Sequential));
         }
     }
 }

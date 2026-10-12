@@ -11,6 +11,8 @@ namespace TCG.Core.Data
         public List<ConditionDefinition> Conditions { get; set; } = new List<ConditionDefinition>();
         public TargetDefinition Target { get; set; } = new TargetDefinition();
         public ActionDefinition Action { get; set; } = new ActionDefinition();
+        /// <summary>발동·처리 연출 설정 (GameDesign §7.3).</summary>
+        public EffectPresentation Presentation { get; set; } = new EffectPresentation();
     }
 
     public sealed class TriggerDefinition
