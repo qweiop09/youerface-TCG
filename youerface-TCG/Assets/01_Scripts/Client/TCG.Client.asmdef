@@ -1,0 +1,16 @@
+{
+    "name": "TCG.Client",
+    "rootNamespace": "TCG.Client",
+    "references": [
+        "TCG.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

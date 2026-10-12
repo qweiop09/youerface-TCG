@@ -103,8 +103,17 @@ youerface-TCG/Assets/
 }
 ```
 
-- `type`: `Minion` | `Field` | `Companion` | `Summon` | (`Spell` — 미정)
-- 소환물: `usage`(사용 횟수) 필드 추가, 주로 `OnTurnEnd` 트리거. 소환물 생성 행동은 소환물 정의를 내부에 포함하는 방식을 제안(미정, GameDesign Q4).
+- `type`: `Minion` | `Spell` | `Field` | `Companion` | `Summon`
+- `attack`/`health`는 `Minion`만 가진다. 필드·동료·소환물은 체력이 없고 공격 대상이 아니다.
+- `usage`(사용 횟수): `Summon` 필수, `Companion` 선택(없으면 영구 지속).
+- `Summon`은 덱·손패에 들어가지 않는다. `CreateSummon` 행동 블록이 소환물 정의를 **내부에 포함**하고, 점수 계산 시 포함된 소환물 점수를 부모 카드에 합산한다.
+
+```json
+{ "action": { "type": "CreateSummon",
+  "summon": { "name": "불씨", "type": "Summon", "usage": 2, "art": { "image": "sha256:..." },
+              "effects": [ { "trigger": { "type": "OnTurnEnd" }, "conditions": [],
+                             "target": { "type": "EnemyHero" }, "action": { "type": "Damage", "amount": 1 } } ] } } }
+```
 - **점수는 저장하지 않는다.** 항상 `ScoreCalculator.Calculate(card, scoreTable)`로 계산 (패치 시 자동 반영).
 - `presentationStyle`: 연출 방식 확장용 자리. 현재 `"default"`(카드 그대로 표시)만.
 - 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다.
