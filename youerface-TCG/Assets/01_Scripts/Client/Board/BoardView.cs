@@ -83,7 +83,7 @@ namespace TCG.Client.Board
                 ZoneName(slots, "동료", Vector3.Lerp(BoardLayout.Companion(0, bottom), BoardLayout.Companion(1, bottom), 0.5f), bottom);
                 ZoneName(slots, "소환물", Vector3.Lerp(BoardLayout.Summon(0, bottom), BoardLayout.Summon(1, bottom), 0.5f), bottom);
 
-                _heroes[side] = HeroView.Create(transform, bottom ? "나" : "상대", BoardLayout.Hero(bottom),
+                _heroes[side] = HeroView.Create(transform, bottom ? Viewer : 1 - Viewer, bottom ? "나" : "상대", BoardLayout.Hero(bottom),
                     bottom ? new Color(0.25f, 0.42f, 0.62f) : new Color(0.62f, 0.27f, 0.25f));
                 _piles[side] = PileView.Create(transform, BoardLayout.Deck(bottom));
             }
@@ -136,6 +136,22 @@ namespace TCG.Client.Board
             position = Vector3.Lerp(target, Camera.transform.position, 0.42f) + Camera.transform.right * offsetX;
             rotation = Quaternion.LookRotation(Camera.transform.up, -Camera.transform.forward);
         }
+
+        /// <summary>기물을 world X 위치에 놓을 때 들어갈 칸 번호 (왼쪽부터 그보다 왼쪽에 있는 기물 수).</summary>
+        public int MinionInsertIndex(int ownerIndex, float worldX)
+        {
+            var list = _zones[SideOf(ownerIndex)][ZoneType.Minion];
+            int index = 0;
+            foreach (var view in list)
+            {
+                if (view.transform.position.x < worldX)
+                    index++;
+            }
+            return index;
+        }
+
+        /// <summary>이 Z보다 위(상대 쪽)에 카드를 놓으면 "보드에 냄"으로 본다.</summary>
+        public const float PlayLineZ = -4.1f;
 
         // ------------------------------------------------------------------ 카드 목록 조작 (연출용)
 
@@ -235,7 +251,7 @@ namespace TCG.Client.Board
                 all.AddRange(_zones[side][z]);
             foreach (var view in all)
             {
-                if (view == except || !TargetPose(view, out var pos, out var rot))
+                if (view == except || view.Held || !TargetPose(view, out var pos, out var rot))
                     continue;
                 moves.Add(Tween.Move(view.transform, pos, rot, duration, 0f, Vector3.one));
             }
@@ -307,7 +323,7 @@ namespace TCG.Client.Board
             {
                 foreach (var view in _cards.Values)
                 {
-                    if (TargetPose(view, out var pos, out var rot))
+                    if (!view.Held && TargetPose(view, out var pos, out var rot))
                     {
                         view.transform.localPosition = pos;
                         view.transform.localRotation = rot;

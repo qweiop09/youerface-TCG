@@ -29,6 +29,8 @@ namespace TCG.Client.Cards
         public CardType Type => _definition.Type;
         public CardDefinition Definition => _definition;
         public bool FaceUp { get; private set; }
+        /// <summary>플레이어가 집고 있는 중. 배치 연출이 이 카드를 옮기지 않는다.</summary>
+        public bool Held { get; set; }
 
         // 화면에 보이는 숫자
         public int Cost { get; private set; }
@@ -53,6 +55,10 @@ namespace TCG.Client.Cards
             OwnerIndex = entity.OwnerIndex;
             _definition = entity.Definition;
             var type = entity.Type;
+
+            // 클릭·끌기 판정용
+            var collider = gameObject.AddComponent<BoxCollider>();
+            collider.size = new Vector3(Width, 0.08f, Height);
 
             _glow = Shapes.Box(transform, "Glow", new Vector3(0, -0.004f, 0), new Vector3(Width + 0.16f, 0.02f, Height + 0.16f), Color.white, unlit: true);
             _glow.SetActive(false);

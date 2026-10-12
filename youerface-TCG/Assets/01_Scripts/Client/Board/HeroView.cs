@@ -11,15 +11,19 @@ namespace TCG.Client.Board
     {
         TextMeshPro _health;
 
+        public int OwnerIndex { get; private set; }
         public int Health { get; private set; }
         public int MaxHealth { get; private set; }
 
-        public static HeroView Create(Transform parent, string label, Vector3 position, Color color)
+        public static HeroView Create(Transform parent, int ownerIndex, string label, Vector3 position, Color color)
         {
             var go = new GameObject($"Hero {label}");
             go.transform.SetParent(parent, false);
             go.transform.localPosition = position;
             var view = go.AddComponent<HeroView>();
+            view.OwnerIndex = ownerIndex;
+            var collider = go.AddComponent<BoxCollider>();
+            collider.size = new Vector3(1.5f, 0.3f, 1.5f);
 
             Shapes.Disc(go.transform, "Plate", Vector3.zero, 1.5f, 0.12f, color);
             Shapes.Label(go.transform, "Name", label, new Vector3(0, 0.08f, 0.1f), 3f, Color.white, 1.4f, 0.5f);

@@ -36,10 +36,11 @@ youerface-TCG/Assets/
 │  │  ├─ AI/                    컴퓨터 플레이어 (EasyAi, SearchAi), 시야 제한(AiView), 가능한 명령 목록, 판세 평가
 │  │  └─ Serialization/         JSON 직렬화
 │  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
-│  │  ├─ Battle/                BattleBootstrap(장면 시작점), SampleData(Resources에서 샘플 카드·덱 읽기)
+│  │  ├─ Battle/                BattleBootstrap(장면 시작점), BattleSession(명령 검증·적용·연출 등록·컴퓨터 차례), SampleData
 │  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
 │  │  ├─ Cards/                 CardView(코드로 만든 임시 카드 그림), CardPalette
 │  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText
+│  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
 │  │  ├─ CardMaker/             카드 제작 UI  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
 │  │  ├─ Net/                   ITransport 구현, 세션
@@ -170,8 +171,20 @@ youerface-TCG/Assets/
 - **화면 숫자**: `CardView`·`HeroView`는 규칙 상태와 별개로 "보이는 숫자"를 들고, 이벤트대로 한 단계씩 바꾼다. 새로 그리는 카드는 `Before`의 값(이번 명령에서 생긴 소환물은 정의 값)에서 시작한다.
 - **맞추기**: 묶음이 끝나면 `BoardView.SyncTo(After)`로 실제 상태와 맞추고, 달랐던 곳 수를 `TotalDrift`에 더해 경고를 남긴다(연출 버그 검출용, PlayMode 테스트가 0인지 검사).
 - **시간**: 모든 연출은 `PresentationTime.Speed` 배속을 따른다(빨리 감기·스킵용). 연출 하나가 예외로 멈춰도 전체가 멈추지 않도록 `Tween.Safe`로 감싼다.
-- **입력 제한**: `PresentationPlayer.IsPlaying` 동안 카드를 내거나 대상을 고르지 못하게 한다(3단계 입력에서 사용).
+- **입력 제한**: `PresentationPlayer.IsPlaying` 동안 `BattleSession.TrySubmit`이 명령을 거절한다. 손패 카드를 집어 끄는 것은 되지만 내기·대상 선택·공격은 안 된다 (GameDesign §7.3).
+
+## 5.1 입력 (M3 3단계)
+
+- 사람과 컴퓨터 모두 `BattleSession.TrySubmit(Command)`로 명령을 낸다 (검증 실패 시 이유 문자열 → 화면 아래 안내 문구). 컴퓨터 차례는 `BattleSession.Tick`이 연출이 끝난 뒤 진행한다.
+- 포인터는 Input System의 `Pointer`(마우스·터치 공용)로 읽는다. 카드·영웅에 BoxCollider를 붙여 레이캐스트로 고른다.
+  - 손패 카드 누르고 끌기 → `PlayLineZ`보다 위에 놓으면 내기 (기물은 놓은 X 위치로 칸 결정). 대상이 필요한 카드는 놓은 뒤 화살표로 대상 클릭 (오른쪽 클릭·Esc 취소).
+  - 내 기물 누르고 끌기 → 공격 화살표, 대상 위에서 놓으면 공격.
+  - 고를 수 있는 대상은 엔진 `Validate`로 미리 걸러 초록빛 표시.
+  - 끌고 있는 카드는 `CardView.Held`로 표시해 배치 연출이 옮기지 않게 한다.
+- 체인 선택 창(`DecisionPanel`): 내 효과 여러 개 → 클릭한 순서대로 체인 번호, 선택 효과는 빼고 확정 가능. 선택 효과 1개뿐이면 "발동 / 발동 안 함". 대응 기회는 "패스" (대응 블록은 아직 없음).
+- UI 클릭은 `EventSystem` + `InputSystemUIInputModule` (실행 시 생성).
 - 이전 프로젝트의 `TimelineDirector.PlayAsync`와 Binder 패턴(§8)은 Timeline 기반 연출기를 만들 때 새 연출기로 등록해 쓴다.
+- **나중에 연출 공유(GameDesign §7.4)를 위한 전제**: 유저 연출은 코드가 아닌 JSON 프리셋(기본 동작 단계의 순차/동시 조합)이고, 이를 해석하는 **데이터 기반 연출기 하나**를 레지스트리에 등록하는 방식으로 붙인다. 따라서 지금 만드는 기본 연출기들도 가능하면 "기본 동작 단계"(이동·크기·흔들기·페이드·사운드 등, 현재 `Tween`)를 조합하는 형태로 유지해, 나중에 같은 단계를 데이터로 옮기기 쉽게 한다. 연출 ID 자리(`presentation.enter` 등)는 기본 연출 ID 또는 프리셋 해시(`sha256:...`)를 받을 수 있게 둔다.
 
 ## 6. 네트워크
 

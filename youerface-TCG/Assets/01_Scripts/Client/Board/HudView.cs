@@ -18,7 +18,9 @@ namespace TCG.Client.Board
             public override string ToString() => $"{Who}   코스트 {Cost}/{MaxCost}   손패 {Hand}   덱 {Deck}";
         }
 
-        TextMeshProUGUI _turn, _mine, _theirs, _banner;
+        TextMeshProUGUI _turn, _mine, _theirs, _banner, _hint;
+        UnityEngine.UI.Button _endTurn;
+        int _hintVersion;
         readonly Line[] _lines = { new Line { Who = "나" }, new Line { Who = "상대" } };
         int _bannerVersion;
 
@@ -35,6 +37,7 @@ namespace TCG.Client.Board
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
 
+            go.AddComponent<GraphicRaycaster>();
             var view = go.AddComponent<HudView>();
             view._turn = Text(go.transform, "Turn", new Vector2(0.5f, 1f), new Vector2(0, -24), 34, TextAlignmentOptions.Top);
             view._theirs = Text(go.transform, "Opponent", new Vector2(0f, 1f), new Vector2(32, -24), 28, TextAlignmentOptions.TopLeft);
@@ -43,6 +46,10 @@ namespace TCG.Client.Board
             view._banner.rectTransform.sizeDelta = new Vector2(1400, 200);
             view._banner.fontStyle = FontStyles.Bold;
             view._banner.text = "";
+            view._hint = Text(go.transform, "Hint", new Vector2(0.5f, 0f), new Vector2(0, 150), 30, TextAlignmentOptions.Bottom);
+            view._hint.rectTransform.sizeDelta = new Vector2(1200, 60);
+            view._hint.color = new Color(1f, 0.85f, 0.45f);
+            view._hint.text = "";
             return view;
         }
 
@@ -63,6 +70,29 @@ namespace TCG.Client.Board
         }
 
         public string TurnText => _turn.text;
+        public string HintText => _hint.text;
+        public UnityEngine.UI.Button EndTurnButton => _endTurn;
+
+        /// <summary>오른쪽 가운데에 "턴 종료" 버튼을 만든다.</summary>
+        public void CreateEndTurnButton(System.Action onClick)
+        {
+            _endTurn = UiFactory.Button(transform, "EndTurn", "턴 종료", new Vector2(1f, 0.5f), new Vector2(-150, 0),
+                new Vector2(220, 84), new Color(0.75f, 0.55f, 0.2f), onClick, 34f);
+        }
+
+        /// <summary>아래쪽에 안내 문구를 잠깐 띄운다 (행동이 안 되는 이유 등).</summary>
+        public void ShowHint(string text, float seconds = 1.8f)
+        {
+            _hint.text = text;
+            StartCoroutine(ClearHint(++_hintVersion, seconds));
+        }
+
+        IEnumerator ClearHint(int version, float seconds)
+        {
+            yield return new WaitForSeconds(seconds);
+            if (version == _hintVersion)
+                _hint.text = "";
+        }
         public string BannerText => _banner.text;
 
         public void Refresh(GameState state, int viewer)

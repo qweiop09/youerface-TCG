@@ -27,6 +27,7 @@ namespace TCG.Tests.Client
 
             var bootstrap = UnityEngine.Object.FindAnyObjectByType<BattleBootstrap>();
             Assert.That(bootstrap, Is.Not.Null);
+            bootstrap.Spectate = true;
             string captureDir = Environment.GetEnvironmentVariable("TCG_CAPTURE_DIR");
             string speed = Environment.GetEnvironmentVariable("TCG_CAPTURE_SPEED");
             bootstrap.Speed = captureDir != null && speed != null ? float.Parse(speed) : 8f;
@@ -58,7 +59,7 @@ namespace TCG.Tests.Client
             Debug.Log($"[Test] commands {bootstrap.CommandsApplied}, queued {bootstrap.Player.BatchesQueued}, played {bootstrap.Player.BatchesPlayed}, phase {bootstrap.State.Phase}");
         }
 
-        static void Capture(string path)
+        internal static void Capture(string path)
         {
             var camera = Camera.main;
             var rt = new RenderTexture(1280, 720, 24);
