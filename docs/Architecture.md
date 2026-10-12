@@ -39,7 +39,7 @@ youerface-TCG/Assets/
 │  │  ├─ Battle/                BattleBootstrap(장면 시작점), SampleData(Resources에서 샘플 카드·덱 읽기)
 │  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
 │  │  ├─ Cards/                 CardView(코드로 만든 임시 카드 그림), CardPalette
-│  │  ├─ Presentation/          이벤트 큐, 연출 해석기 (상세는 사용자와 논의 후)
+│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText
 │  │  ├─ CardMaker/             카드 제작 UI  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
 │  │  ├─ Net/                   ITransport 구현, 세션
@@ -47,7 +47,8 @@ youerface-TCG/Assets/
 │  │  └─ Common/                KoreanFont(OS 한글 폰트), MaterialCache, Shapes(도형·글자), KoreanTerms
 │  ├─ EditorTools/              TCG.EditorTools.asmdef (에디터 전용) — 프로젝트 준비, Battle 장면 생성, 화면 캡처
 │  └─ Tests/
-│     └─ Core/                  TCG.Core.Tests.asmdef (EditMode, Core 참조)
+│     ├─ Core/                  TCG.Core.Tests.asmdef (EditMode, Core 참조)
+│     └─ Client/                TCG.Client.Tests.asmdef (PlayMode) — Battle 장면 관전 모드로 연출·화면 일치 검사
 ├─ 02_Prefabs/
 ├─ 03_Datas/Resources/          샘플 카드(SampleCards/*.json)·덱(SampleDecks/*.json), 기본 머티리얼(Materials/BaseLit·BaseUnlit). Resources.Load로 읽음
 ├─ 04_TimeLines/
@@ -157,13 +158,20 @@ youerface-TCG/Assets/
   - 화면 캡처: `Unity -batchmode -projectPath youerface-TCG -executeMethod TCG.EditorTools.BattleScreenshot.CaptureFromCommandLine -screenshot out.png [-seed N -steps N]` (`-nographics` 없이). 캡처 중에는 SRP Batcher를 잠시 끈다 (프레임 없이 바로 그리면 머티리얼 색이 반영되지 않음).
   - 에디터 메뉴: TCG/Setup/*, TCG/Capture Battle Screenshot
 
-## 5. 이벤트와 연출 — 개요만 (상세는 구현 전 사용자와 논의)
+## 5. 이벤트와 연출 (M3 2단계 구현, 방향은 GameDesign §7.2·§7.3)
 
 - Core는 `GameEvent` 목록만 내보내고, 연출을 전혀 모른다.
-- Client의 연출 큐가 이벤트를 하나씩 꺼내, `이벤트 종류 + 카드·효과의 presentation 설정`로 연출기(`IEventPresenter` 같은 것)를 골라 `await` 재생.
-- 연출 방식 추가 = 새 연출기 등록. 기존 코드 수정 없음.
-- 이 구조 덕분에 연출 스킵, 빠르게 감기, 리플레이가 가능하다.
-- 이전 프로젝트의 `TimelineDirector.PlayAsync`와 Binder 패턴(§8)을 Timeline 기반 연출기에 활용할 수 있다.
+- **재생 단위**: 명령 1개의 이벤트 묶음. 클라이언트는 명령 직전 상태 복사본(`Before`)·직후 복사본(`After`)과 함께 `PresentationPlayer.Enqueue`로 넘긴다. 묶음은 차례로 재생된다.
+- **연출기 고르기**: `PresenterRegistry`가 `(이벤트 종류, 연출 종류 ID)`로 `IEventPresenter`를 찾는다. 연출 종류는 카드의 `presentation.enter/exit`, 효과의 `presentation.activation/resolution`에서 오고, 없으면 `"default"`. **새 연출 = 새 항목 등록**, 기존 코드 수정 없음. 효과 연출이 꺼져 있으면(`enabled=false`) 발동·처리 연출만 건너뛰고 시스템 연출은 재생한다.
+- **순서와 병렬**:
+  - 구조 이벤트(카드 내기, 주문, 체인 발동·처리·무효, 공격, 턴, 승패)는 하나씩 순서대로.
+  - 그 사이에 이어지는 결과 이벤트(피해, 회복, 사망·퇴장, 수치·사용 횟수 변화, 드로우·버리기·소멸, 소환물 등장)는 **대상별 줄**로 나눠 병렬 재생. 같은 대상은 한 줄에서 순서대로(예: 피격 → 사망).
+  - 직전 처리 효과의 `hitMode`가 `Sequential`이면 줄마다 0.28초씩 늦게 시작한다(하나씩 차례로), `Simultaneous`면 동시에.
+- **화면 숫자**: `CardView`·`HeroView`는 규칙 상태와 별개로 "보이는 숫자"를 들고, 이벤트대로 한 단계씩 바꾼다. 새로 그리는 카드는 `Before`의 값(이번 명령에서 생긴 소환물은 정의 값)에서 시작한다.
+- **맞추기**: 묶음이 끝나면 `BoardView.SyncTo(After)`로 실제 상태와 맞추고, 달랐던 곳 수를 `TotalDrift`에 더해 경고를 남긴다(연출 버그 검출용, PlayMode 테스트가 0인지 검사).
+- **시간**: 모든 연출은 `PresentationTime.Speed` 배속을 따른다(빨리 감기·스킵용). 연출 하나가 예외로 멈춰도 전체가 멈추지 않도록 `Tween.Safe`로 감싼다.
+- **입력 제한**: `PresentationPlayer.IsPlaying` 동안 카드를 내거나 대상을 고르지 못하게 한다(3단계 입력에서 사용).
+- 이전 프로젝트의 `TimelineDirector.PlayAsync`와 Binder 패턴(§8)은 Timeline 기반 연출기를 만들 때 새 연출기로 등록해 쓴다.
 
 ## 6. 네트워크
 

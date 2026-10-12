@@ -62,23 +62,8 @@ namespace TCG.Core.Rules
         }
 
         /// <summary>카드의 효과 목록: 카드 정의의 효과, 그다음 키워드 효과 (결정적 순서).</summary>
-        public void CollectEffects(Entity entity, List<EffectDefinition> results)
-        {
-            var own = entity.Definition.Effects;
-            if (own != null)
-            {
-                for (int i = 0; i < own.Count; i++)
-                    results.Add(own[i]);
-            }
-
-            for (int k = 0; k < entity.Keywords.Count; k++)
-            {
-                if (!Registry.TryGetKeyword(entity.Keywords[k], out var info))
-                    continue;
-                for (int i = 0; i < info.ImplicitEffects.Count; i++)
-                    results.Add(info.ImplicitEffects[i]);
-            }
-        }
+        public void CollectEffects(Entity entity, List<EffectDefinition> results) =>
+            EffectLookup.Collect(entity, Registry, results);
 
         // ------------------------------------------------------------------ 드로우 / 버리기
 

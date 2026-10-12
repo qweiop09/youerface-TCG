@@ -27,7 +27,12 @@ namespace TCG.Client.Board
         /// <summary>bottom=true면 화면 쪽(나), false면 상대 쪽. Z 부호를 뒤집는다.</summary>
         static Vector3 P(float x, float z, bool bottom) => new Vector3(x, 0f, bottom ? -z : z);
 
+        /// <summary>빈 칸 표시용 고정 위치 (3칸).</summary>
         public static Vector3 Minion(int index, bool bottom) => P(MinionX[index], FrontRowZ, bottom);
+
+        /// <summary>기물 count개를 가운데 정렬했을 때 index번째 위치.</summary>
+        public static Vector3 Minion(int index, int count, bool bottom) =>
+            P((index - (count - 1) * 0.5f) * SlotGap, FrontRowZ, bottom);
         public static Vector3 Field(bool bottom) => P(FieldX, FrontRowZ, bottom);
 
         /// <summary>2x2 칸: 0,1 = 앞줄, 2,3 = 뒷줄.</summary>

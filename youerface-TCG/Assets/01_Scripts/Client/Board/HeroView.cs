@@ -6,10 +6,13 @@ using UnityEngine;
 
 namespace TCG.Client.Board
 {
-    /// <summary>영웅 표시: 원판 + 이름표 + 체력.</summary>
+    /// <summary>영웅 표시: 원판 + 이름표 + 체력. 체력은 화면에 보이는 값을 따로 든다 (연출 중 단계별로 바뀜).</summary>
     public sealed class HeroView : MonoBehaviour
     {
         TextMeshPro _health;
+
+        public int Health { get; private set; }
+        public int MaxHealth { get; private set; }
 
         public static HeroView Create(Transform parent, string label, Vector3 position, Color color)
         {
@@ -28,10 +31,22 @@ namespace TCG.Client.Board
             return view;
         }
 
-        public void Refresh(HeroState hero)
+        /// <summary>실제 상태와 맞춘다. 표시가 달랐으면 true.</summary>
+        public bool Refresh(HeroState hero)
         {
-            _health.text = hero.Health.ToString();
-            _health.color = hero.Health < hero.MaxHealth ? CardPalette.Worse : CardPalette.NumberLight;
+            bool changed = Health != hero.Health || MaxHealth != hero.MaxHealth;
+            SetHealth(hero.Health, hero.MaxHealth);
+            return changed;
         }
+
+        public void SetHealth(int health, int maxHealth)
+        {
+            Health = health;
+            MaxHealth = maxHealth;
+            _health.text = health.ToString();
+            _health.color = health < maxHealth ? CardPalette.Worse : CardPalette.NumberLight;
+        }
+
+        public void AddHealth(int delta) => SetHealth(Health + delta, MaxHealth);
     }
 }

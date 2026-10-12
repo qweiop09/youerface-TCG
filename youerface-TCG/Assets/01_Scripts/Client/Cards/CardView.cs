@@ -1,5 +1,6 @@
 using System.Text;
 using TCG.Client.Common;
+using TCG.Core.Data;
 using TCG.Core.State;
 using TMPro;
 using UnityEngine;
@@ -8,7 +9,8 @@ namespace TCG.Client.Cards
 {
     /// <summary>
     /// 카드 1장의 임시 그림 (코드로 만든 판 + 글자). 카드는 XZ 평면에 누워 있고 위쪽이 +Z.
-    /// 크기: 가로 <see cref="Width"/>, 세로 <see cref="Height"/>.
+    /// 표시하는 숫자는 규칙 상태와 별개로 들고 있다 — 연출 중에는 이벤트에 따라 한 단계씩 바뀌고,
+    /// 연출이 끝나면 <see cref="SetNumbersFrom"/>으로 실제 상태와 맞춘다.
     /// </summary>
     public sealed class CardView : MonoBehaviour
     {
@@ -18,29 +20,43 @@ namespace TCG.Client.Cards
         const float Top = Thickness * 0.5f + 0.002f;
 
         TextMeshPro _cost, _attack, _health, _usage;
-        GameObject _faceRoot, _backRoot, _attackBadge, _healthBadge, _usageBadge;
-        bool _built;
+        GameObject _faceRoot, _backRoot, _attackBadge, _healthBadge, _usageBadge, _costBadge, _glow;
+        Renderer _body;
+        CardDefinition _definition;
 
         public int EntityId { get; private set; }
+        public int OwnerIndex { get; private set; }
+        public CardType Type => _definition.Type;
+        public CardDefinition Definition => _definition;
         public bool FaceUp { get; private set; }
+
+        // 화면에 보이는 숫자
+        public int Cost { get; private set; }
+        public int? Attack { get; private set; }
+        public int? Health { get; private set; }
+        public int? MaxHealth { get; private set; }
+        public int? Usage { get; private set; }
 
         public static CardView Create(Transform parent, Entity entity, bool faceUp)
         {
-            var go = new GameObject($"Card {entity.Id}");
+            var go = new GameObject($"Card {entity.Id} {entity.Definition.Name}");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<CardView>();
-            view.Build(entity, faceUp);
+            view.Build(entity);
+            view.SetFaceUp(faceUp);
             return view;
         }
 
-        void Build(Entity entity, bool faceUp)
+        void Build(Entity entity)
         {
             EntityId = entity.Id;
-            FaceUp = faceUp;
+            OwnerIndex = entity.OwnerIndex;
+            _definition = entity.Definition;
             var type = entity.Type;
 
-            Shapes.Box(transform, "Body", Vector3.zero, new Vector3(Width, Thickness, Height),
-                faceUp ? CardPalette.Body(type) : CardPalette.Back);
+            _glow = Shapes.Box(transform, "Glow", new Vector3(0, -0.004f, 0), new Vector3(Width + 0.16f, 0.02f, Height + 0.16f), Color.white, unlit: true);
+            _glow.SetActive(false);
+            _body = Shapes.Box(transform, "Body", Vector3.zero, new Vector3(Width, Thickness, Height), CardPalette.Body(type)).GetComponent<Renderer>();
 
             _backRoot = new GameObject("Back");
             _backRoot.transform.SetParent(transform, false);
@@ -50,7 +66,6 @@ namespace TCG.Client.Cards
             _faceRoot = new GameObject("Face");
             _faceRoot.transform.SetParent(transform, false);
             var face = _faceRoot.transform;
-            var def = entity.Definition;
 
             // 그림 자리: 아직 카드 이미지가 없으므로 종류 이름을 크게 적는다.
             Shapes.Box(face, "Art", new Vector3(0, Top, 0.22f), new Vector3(0.86f, 0.002f, 0.72f), CardPalette.Art(type));
@@ -58,16 +73,15 @@ namespace TCG.Client.Cards
                 new Color(1f, 1f, 1f, 0.55f), 0.8f, 0.4f);
 
             Shapes.Box(face, "Banner", new Vector3(0, Top, -0.24f), new Vector3(0.94f, 0.002f, 0.2f), CardPalette.Banner);
-            Shapes.Label(face, "Name", def.Name ?? "", new Vector3(0, Top + 0.004f, -0.24f), 1.6f, CardPalette.Text, 0.9f, 0.2f, ellipsis: true);
+            Shapes.Label(face, "Name", _definition.Name ?? "", new Vector3(0, Top + 0.004f, -0.24f), 1.6f, CardPalette.Text, 0.9f, 0.2f, ellipsis: true);
             Shapes.Label(face, "Keywords", KeywordLine(entity), new Vector3(0, Top + 0.004f, -0.43f), 1.3f, CardPalette.Text, 0.9f, 0.18f, ellipsis: true);
 
-            _cost = Badge(face, "Cost", new Vector3(-0.4f, 0, 0.6f), CardPalette.CostBadge, out _);
+            _cost = Badge(face, "Cost", new Vector3(-0.4f, 0, 0.6f), CardPalette.CostBadge, out _costBadge);
             _attack = Badge(face, "Attack", new Vector3(-0.4f, 0, -0.6f), CardPalette.AttackBadge, out _attackBadge);
             _health = Badge(face, "Health", new Vector3(0.4f, 0, -0.6f), CardPalette.HealthBadge, out _healthBadge);
             _usage = Badge(face, "Usage", new Vector3(0.4f, 0, -0.6f), CardPalette.UsageBadge, out _usageBadge);
 
-            _built = true;
-            Refresh(entity);
+            SetNumbersFrom(entity);
         }
 
         static TextMeshPro Badge(Transform parent, string name, Vector3 pos, Color color, out GameObject badge)
@@ -90,39 +104,72 @@ namespace TCG.Client.Cards
             return sb.ToString();
         }
 
-        /// <summary>현재 수치로 숫자 표시를 갱신한다.</summary>
-        public void Refresh(Entity entity)
+        public void SetFaceUp(bool faceUp)
         {
-            if (!_built)
-                return;
+            FaceUp = faceUp;
+            _faceRoot.SetActive(faceUp);
+            _backRoot.SetActive(!faceUp);
+            _body.sharedMaterial = MaterialCache.Get(faceUp ? CardPalette.Body(_definition.Type) : CardPalette.Back);
+        }
 
-            _faceRoot.SetActive(FaceUp);
-            _backRoot.SetActive(!FaceUp);
-            if (!FaceUp)
-                return;
+        /// <summary>실제 상태의 수치로 표시를 맞춘다. 표시가 달랐으면 true.</summary>
+        public bool SetNumbersFrom(Entity entity)
+        {
+            bool changed = Cost != entity.Cost || Attack != entity.Attack || Health != entity.Health
+                || MaxHealth != entity.MaxHealth || Usage != entity.Usage;
+            SetNumbers(entity.Cost, entity.Attack, entity.Health, entity.MaxHealth, entity.Usage);
+            return changed;
+        }
 
-            var def = entity.Definition;
-            _cost.text = entity.Cost.ToString();
-            _cost.color = entity.Cost < def.Cost ? CardPalette.BetterLight : entity.Cost > def.Cost ? CardPalette.Worse : CardPalette.NumberLight;
+        public void SetNumbers(int cost, int? attack, int? health, int? maxHealth, int? usage)
+        {
+            Cost = cost;
+            Attack = attack;
+            Health = health;
+            MaxHealth = maxHealth;
+            Usage = usage;
+            RefreshNumbers();
+        }
+
+        public void SetStats(int? attack, int? health, int? maxHealth, int cost) => SetNumbers(cost, attack, health, maxHealth, Usage);
+        public void SetUsage(int usage) => SetNumbers(Cost, Attack, Health, MaxHealth, usage);
+        public void AddHealth(int delta)
+        {
+            if (Health.HasValue)
+                SetNumbers(Cost, Attack, Health + delta, MaxHealth, Usage);
+        }
+
+        void RefreshNumbers()
+        {
+            _cost.text = Cost.ToString();
+            _cost.color = Cost < _definition.Cost ? CardPalette.BetterLight : Cost > _definition.Cost ? CardPalette.Worse : CardPalette.NumberLight;
             // 소환물은 손패로 오지 않으므로 코스트를 표시하지 않는다.
-            _cost.transform.parent.gameObject.SetActive(entity.Type != Core.Data.CardType.Summon);
+            _costBadge.SetActive(_definition.Type != CardType.Summon);
 
-            bool hasStats = entity.Attack.HasValue;
+            bool hasStats = Attack.HasValue && Health.HasValue && MaxHealth.HasValue;
             _attackBadge.SetActive(hasStats);
             _healthBadge.SetActive(hasStats);
             if (hasStats)
             {
-                _attack.text = entity.Attack.Value.ToString();
-                _attack.color = entity.Attack.Value > (def.Attack ?? 0) ? CardPalette.BetterDark : CardPalette.NumberDark;
-                _health.text = entity.Health.Value.ToString();
-                _health.color = entity.Health.Value < entity.MaxHealth.Value ? CardPalette.Worse
-                    : entity.MaxHealth.Value > (def.Health ?? 0) ? CardPalette.BetterLight : CardPalette.NumberLight;
+                _attack.text = Attack.Value.ToString();
+                _attack.color = Attack.Value > (_definition.Attack ?? 0) ? CardPalette.BetterDark : CardPalette.NumberDark;
+                _health.text = Health.Value.ToString();
+                _health.color = Health.Value < MaxHealth.Value ? CardPalette.Worse
+                    : MaxHealth.Value > (_definition.Health ?? 0) ? CardPalette.BetterLight : CardPalette.NumberLight;
             }
 
-            bool hasUsage = entity.Usage.HasValue && !hasStats;
+            bool hasUsage = Usage.HasValue && !hasStats;
             _usageBadge.SetActive(hasUsage);
             if (hasUsage)
-                _usage.text = entity.Usage.Value.ToString();
+                _usage.text = Usage.Value.ToString();
+        }
+
+        /// <summary>테두리 빛. null이면 끈다.</summary>
+        public void SetGlow(Color? color)
+        {
+            _glow.SetActive(color.HasValue);
+            if (color.HasValue)
+                _glow.GetComponent<Renderer>().sharedMaterial = MaterialCache.Get(color.Value, unlit: true);
         }
     }
 }
