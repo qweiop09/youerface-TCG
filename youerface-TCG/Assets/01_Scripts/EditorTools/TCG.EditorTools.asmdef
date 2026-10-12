@@ -1,0 +1,21 @@
+{
+    "name": "TCG.EditorTools",
+    "rootNamespace": "TCG.EditorTools",
+    "references": [
+        "TCG.Core",
+        "TCG.Client",
+        "Unity.TextMeshPro",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

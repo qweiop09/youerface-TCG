@@ -22,7 +22,7 @@ Unity 프로젝트 루트는 `youerface-TCG/` 하위 폴더다.
 
 ```
 youerface-TCG/Assets/
-├─ 00_Scenes/
+├─ 00_Scenes/                   Battle.unity (빌드 첫 장면)
 ├─ 01_Scripts/
 │  ├─ Core/                     TCG.Core.asmdef      (noEngineReferences: true)
 │  │  ├─ Data/                  CardDefinition, EffectDefinition, RuleConfig, 열거형
@@ -35,19 +35,21 @@ youerface-TCG/Assets/
 │  │  ├─ Random/                DeterministicRng
 │  │  ├─ AI/                    컴퓨터 플레이어 (EasyAi, SearchAi), 시야 제한(AiView), 가능한 명령 목록, 판세 평가
 │  │  └─ Serialization/         JSON 직렬화
-│  ├─ Client/                   TCG.Client.asmdef    (Core 참조)
-│  │  ├─ Board/                 영역·카드 배치 뷰
-│  │  ├─ Cards/                 카드 뷰
+│  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
+│  │  ├─ Battle/                BattleBootstrap(장면 시작점), SampleData(Resources에서 샘플 카드·덱 읽기)
+│  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
+│  │  ├─ Cards/                 CardView(코드로 만든 임시 카드 그림), CardPalette
 │  │  ├─ Presentation/          이벤트 큐, 연출 해석기 (상세는 사용자와 논의 후)
 │  │  ├─ CardMaker/             카드 제작 UI  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
 │  │  ├─ Net/                   ITransport 구현, 세션
 │  │  ├─ UserAssets/            IFilePicker, IUserAssetStore
-│  │  └─ Common/                Singleton, SceneLoader 등
+│  │  └─ Common/                KoreanFont(OS 한글 폰트), MaterialCache, Shapes(도형·글자), KoreanTerms
+│  ├─ EditorTools/              TCG.EditorTools.asmdef (에디터 전용) — 프로젝트 준비, Battle 장면 생성, 화면 캡처
 │  └─ Tests/
 │     └─ Core/                  TCG.Core.Tests.asmdef (EditMode, Core 참조)
 ├─ 02_Prefabs/
-├─ 03_Datas/Resources/          샘플 카드(SampleCards/*.json)·덱(SampleDecks/*.json). Resources.Load로 읽음
+├─ 03_Datas/Resources/          샘플 카드(SampleCards/*.json)·덱(SampleDecks/*.json), 기본 머티리얼(Materials/BaseLit·BaseUnlit). Resources.Load로 읽음
 ├─ 04_TimeLines/
 └─ 05_Animations/
 ```
@@ -141,6 +143,19 @@ youerface-TCG/Assets/
 - **턴 시작**: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 체인.
 - **수치 모델**: 공격력·체력·코스트 = 기본값(영구 변경 포함) + 상시 보정값. 체력은 받은 피해량으로 관리하고, 상시 보정은 처리 단계마다 처음부터 다시 계산한다.
 - **상태 해시** (`StateHasher`, FNV-1a 64): 리플레이·동기화 검증용. 시드 + 덱 + 명령 목록이 같으면 해시가 같다.
+
+## 4.2 화면 (M3, 2.5D) — 구현 메모
+
+- 화면 요소는 프리팹 없이 **코드로 생성**한다 (`Shapes`, `CardView` 등). 카드 그림·사운드가 붙기 전까지 종류별 색 + 이름 + 숫자로 그린다.
+- 보드 좌표: 바닥이 XZ 평면, 화면을 보는 플레이어가 -Z 쪽. 배치는 `BoardLayout`에 모아 둔다 (동료 2x2 | 필드 | 기물 3 | 소환물 2x2 | 덱, 뒤에 영웅).
+- `BoardView.Render(state, viewer)`는 상태를 **즉시** 그대로 배치한다 (연출 없음). 연출 재생기는 이 위에 얹는다.
+- 한글 폰트: 지금은 OS 폰트(맥 Apple SD Gothic Neo, 윈도우 맑은 고딕)를 실행 중에 불러온다. **출시 전 라이선스 맞는 폰트 파일로 교체 필요.**
+- 런타임 머티리얼은 `Resources/Materials`의 기본 머티리얼을 복제해 색만 바꾼다 (빌드에 URP 셰이더 포함 보장).
+- TextMeshPro 기본 리소스는 `Assets/TextMesh Pro`에 있다 (TMP 표준 위치라 번호 접두어 예외).
+- 개발용 명령 (에디터가 닫혀 있을 때):
+  - 준비: `Unity -batchmode -quit -projectPath youerface-TCG -executeMethod TCG.EditorTools.ProjectSetup.SetupAll`
+  - 화면 캡처: `Unity -batchmode -projectPath youerface-TCG -executeMethod TCG.EditorTools.BattleScreenshot.CaptureFromCommandLine -screenshot out.png [-seed N -steps N]` (`-nographics` 없이). 캡처 중에는 SRP Batcher를 잠시 끈다 (프레임 없이 바로 그리면 머티리얼 색이 반영되지 않음).
+  - 에디터 메뉴: TCG/Setup/*, TCG/Capture Battle Screenshot
 
 ## 5. 이벤트와 연출 — 개요만 (상세는 구현 전 사용자와 논의)
 

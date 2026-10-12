@@ -2,7 +2,8 @@
     "name": "TCG.Client",
     "rootNamespace": "TCG.Client",
     "references": [
-        "TCG.Core"
+        "TCG.Core",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
