@@ -16,6 +16,8 @@ namespace TCG.Client.Battle
     {
         readonly IAiPlayer[] _ai;
         float _waited;
+        Command _aiCommand;
+        float _aiDelay;
 
         public GameState State { get; }
         public GameEngine Engine { get; }
@@ -24,8 +26,13 @@ namespace TCG.Client.Battle
         public int Human { get; }
         /// <summary>true면 사람 쪽도 컴퓨터가 둔다 (관전 모드).</summary>
         public bool Spectate { get; set; }
-        /// <summary>컴퓨터가 한 수를 두기 전 기다리는 시간(초, 연출 배속 적용).</summary>
-        public float ThinkDelay { get; set; } = 0.35f;
+        /// <summary>
+        /// 컴퓨터가 행동 전 쉬는 시간(초, 연출 배속 적용). 사람이 무엇을 했는지 따라올 수 있게 종류별로 다르게 둔다.
+        /// </summary>
+        public AiPacing Pacing { get; } = new AiPacing();
+
+        /// <summary>컴퓨터가 다음 행동을 고른 뒤 기다리는 중인가 ("상대가 생각 중…" 표시용).</summary>
+        public bool AiThinking => _aiCommand != null;
         public int CommandsApplied { get; private set; }
 
         public BattleSession(GameState state, GameEngine engine, PresentationPlayer player, int human, IAiPlayer[] ai)
@@ -76,23 +83,57 @@ namespace TCG.Client.Battle
             Player.Enqueue(events, before, State.Clone());
         }
 
-        /// <summary>매 프레임: 컴퓨터 차례면 연출이 끝난 뒤 잠깐 기다렸다가 한 수 둔다.</summary>
+        /// <summary>
+        /// 매 프레임: 컴퓨터 차례면 (연출이 끝난 뒤) 다음 행동을 먼저 고르고, 행동 종류에 맞는 시간만큼 쉬었다가 둔다.
+        /// </summary>
         public void Tick(float deltaTime)
         {
             if (!InProgress || Player.IsPlaying)
                 return;
             int mover = Mover;
             if (mover == Human && !Spectate)
+            {
+                _aiCommand = null;
                 return;
+            }
+
+            if (_aiCommand == null)
+            {
+                _aiCommand = _ai[mover].ChooseCommand(State, mover);
+                _aiDelay = Pacing.DelayFor(_aiCommand);
+                _waited = 0f;
+            }
 
             _waited += deltaTime;
-            if (_waited < ThinkDelay)
+            if (_waited < _aiDelay)
                 return;
-            _waited = 0f;
-            Apply(_ai[mover].ChooseCommand(State, mover));
+            var command = _aiCommand;
+            _aiCommand = null;
+            Apply(command);
         }
 
         /// <summary>규칙 엔진 기준으로 이 카드를 내려면 대상을 골라야 하는가.</summary>
         public bool RequiresTarget(Entity card) => Engine.RequiresChosenTarget(card);
+    }
+
+    /// <summary>컴퓨터 행동 간격 (초, 연출 배속 적용 전). 연출 길이와 별개로 "다음 행동 전 쉬는 시간".</summary>
+    public sealed class AiPacing
+    {
+        public float PlayCard { get; set; } = 0.75f;
+        public float Attack { get; set; } = 0.6f;
+        public float EndTurn { get; set; } = 0.7f;
+        /// <summary>체인 기회 선택 (올리기·패스).</summary>
+        public float ChainChoice { get; set; } = 0.45f;
+
+        public float DelayFor(Command command)
+        {
+            switch (command)
+            {
+                case PlayCardCommand _: return PlayCard;
+                case AttackCommand _: return Attack;
+                case EndTurnCommand _: return EndTurn;
+                default: return ChainChoice;
+            }
+        }
     }
 }

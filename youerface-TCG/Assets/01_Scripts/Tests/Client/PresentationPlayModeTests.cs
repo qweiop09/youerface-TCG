@@ -19,6 +19,7 @@ namespace TCG.Tests.Client
     public class PresentationPlayModeTests
     {
         [UnityTest]
+        [Timeout(900000)]
         public IEnumerator Spectate_PresentationsStayInSyncWithState()
         {
             SceneManager.LoadScene("Battle");
@@ -35,9 +36,29 @@ namespace TCG.Tests.Client
             float started = Time.realtimeSinceStartup;
             float nextCapture = started + 2f;
             int captured = 0;
+            bool bigCardCaptured = false;
+            bool thinkingCaptured = false;
             while (bootstrap.State.Phase == GamePhase.InProgress && bootstrap.CommandsApplied < 160
                    && Time.realtimeSinceStartup - started < 300f)
             {
+                if (captureDir != null && !bigCardCaptured && bootstrap.Board.Hud.BigCard.IsShowing
+                    && bootstrap.Board.Hud.BigCard.transform.localScale.x > 0.99f)
+                {
+                    Capture(Path.Combine(captureDir, "big_card.png"));
+                    bigCardCaptured = true;
+                }
+                if (captureDir != null && !thinkingCaptured && bootstrap.Session.AiThinking && !bootstrap.Player.IsPlaying
+                    && bootstrap.Session.Mover != bootstrap.Session.Human)
+                {
+                    bootstrap.Spectate = false; // "생각 중" 표시는 사람 vs 컴퓨터에서만 보인다
+                    yield return null;
+                    if (bootstrap.Session.AiThinking)
+                    {
+                        Capture(Path.Combine(captureDir, "thinking.png"));
+                        thinkingCaptured = true;
+                    }
+                    bootstrap.Spectate = true;
+                }
                 if (captureDir != null && captured < 60 && Time.realtimeSinceStartup >= nextCapture)
                 {
                     Capture(Path.Combine(captureDir, $"frame_{captured++:00}.png"));
@@ -56,6 +77,8 @@ namespace TCG.Tests.Client
             Assert.That(bootstrap.Player.IsPlaying, Is.False, "연출이 끝나지 않음");
             Assert.That(bootstrap.Player.BatchesPlayed, Is.GreaterThan(20));
             Assert.That(bootstrap.Player.TotalDrift, Is.EqualTo(0), "연출 후 화면과 상태가 달랐던 곳 수");
+            Assert.That(bootstrap.Board.Hud.BigCard.ShownCount, Is.GreaterThan(0), "상대 카드를 크게 띄웠어야 함");
+            Assert.That(bootstrap.Board.Hud.BigCard.IsShowing, Is.False);
             Debug.Log($"[Test] commands {bootstrap.CommandsApplied}, queued {bootstrap.Player.BatchesQueued}, played {bootstrap.Player.BatchesPlayed}, phase {bootstrap.State.Phase}");
         }
 

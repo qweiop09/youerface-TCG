@@ -17,6 +17,7 @@ namespace TCG.Tests.Client
     public class HumanPlayModeTests
     {
         [UnityTest]
+        [Timeout(900000)]
         public IEnumerator HumanPath_PlaysFullGame_ThroughSessionAndDecisionPanel()
         {
             SceneManager.LoadScene("Battle");

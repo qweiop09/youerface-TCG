@@ -125,6 +125,7 @@ namespace TCG.Client.Battle
             var endTurn = Board.Hud.EndTurnButton;
             if (endTurn != null)
                 endTurn.interactable = Session.HumanCanAct && State.Decision == null;
+            Board.Hud.SetThinking(Session.AiThinking && !Session.Spectate);
         }
 
         void EndTurn()

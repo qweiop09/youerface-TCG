@@ -29,6 +29,7 @@ namespace TCG.Tests.Client
         }
 
         [UnityTest]
+        [Timeout(900000)]
         public IEnumerator Panel_GroupsMandatoryAndOptional_InOneWindow()
         {
             SceneManager.LoadScene("Battle");
@@ -97,6 +98,7 @@ namespace TCG.Tests.Client
         }
 
         [UnityTest]
+        [Timeout(900000)]
         public IEnumerator Panel_ManyEffects_Scrolls()
         {
             SceneManager.LoadScene("Battle");

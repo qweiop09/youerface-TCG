@@ -119,14 +119,26 @@ namespace TCG.Client.Presentation
                 yield break;
             }
 
+            if (!c.IsMine(e.PlayerIndex))
+            {
+                // 상대 카드: 화면 가운데에 크게 띄운 뒤(상세 카드), 실제 카드는 바로 자리로 (주문은 옆에 띄워 둠).
+                c.Host.StartCoroutine(c.Board.Layout(e.PlayerIndex, MoveTime));
+                yield return c.Board.Hud.BigCard.Show(c.Snapshot(e.EntityId), "상대가 낸 카드");
+                if (view.Type == Core.Data.CardType.Spell)
+                {
+                    c.Board.ShowcasePose(out var side, out var sideRot, -3.2f);
+                    yield return Tween.Move(view.transform, side, sideRot, MoveTime, 0f, Vector3.one * 1.1f);
+                }
+                yield break;
+            }
+
             c.Board.ShowcasePose(out var pos, out var rot);
             yield return Tween.All(c.Host, new[]
             {
                 Tween.Move(view.transform, pos, rot, MoveTime, 0f, Vector3.one * 1.7f),
                 c.Board.Layout(e.PlayerIndex, MoveTime),
             });
-            // 상대 카드는 무엇인지 볼 시간을 더 준다 (크게 띄우기는 M3 4단계에서 다듬는다).
-            yield return Tween.Wait(c.IsMine(e.PlayerIndex) ? 0.15f : 0.6f);
+            yield return Tween.Wait(0.15f);
         }
 
         static IEnumerator Entered(PresentationContext c, CardEnteredEvent e)

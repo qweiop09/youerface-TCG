@@ -100,6 +100,39 @@ namespace TCG.Client.Common
             image.raycastTarget = false;
         }
 
+        static Sprite _circle;
+
+        /// <summary>코드로 만든 원 스프라이트 (빌트인 UI 스프라이트는 에디터 전용이라 직접 만든다).</summary>
+        public static Sprite CircleSprite()
+        {
+            if (_circle != null)
+                return _circle;
+            const int size = 128;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "Circle", wrapMode = TextureWrapMode.Clamp };
+            float r = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Mathf.Sqrt((x + 0.5f - r) * (x + 0.5f - r) + (y + 0.5f - r) * (y + 0.5f - r));
+                    texture.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - d)));
+                }
+            }
+            texture.Apply();
+            _circle = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+            return _circle;
+        }
+
+        /// <summary>원 + 가운데 숫자 (코스트·공격력·체력 표시).</summary>
+        public static TextMeshProUGUI Badge(Transform parent, string name, Vector2 anchor, Vector2 position, float diameter, Color color, float fontSize)
+        {
+            var image = Panel(parent, name, anchor, position, new Vector2(diameter, diameter), color);
+            image.sprite = CircleSprite();
+            var text = Text(image.transform, "Value", "", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(diameter, diameter), fontSize);
+            text.fontStyle = FontStyles.Bold;
+            return text;
+        }
+
         public static void SetLabel(Button button, string label) =>
             button.GetComponentInChildren<TextMeshProUGUI>().text = label;
     }

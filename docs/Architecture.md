@@ -38,8 +38,8 @@ youerface-TCG/Assets/
 │  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
 │  │  ├─ Battle/                BattleBootstrap(장면 시작점), BattleSession(명령 검증·적용·연출 등록·컴퓨터 차례), SampleData
 │  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
-│  │  ├─ Cards/                 CardView(코드로 만든 임시 카드 그림), CardPalette
-│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText
+│  │  ├─ Cards/                 CardView(보드 위 3D 카드), CardDetailView(크게 보는 uGUI 카드: 키워드 설명·효과 설명), CardPalette
+│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay
 │  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
 │  │  ├─ CardMaker/             카드 제작 UI  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
@@ -174,6 +174,11 @@ youerface-TCG/Assets/
 - **맞추기**: 묶음이 끝나면 `BoardView.SyncTo(After)`로 실제 상태와 맞추고, 달랐던 곳 수를 `TotalDrift`에 더해 경고를 남긴다(연출 버그 검출용, PlayMode 테스트가 0인지 검사).
 - **시간**: 모든 연출은 `PresentationTime.Speed` 배속을 따른다(빨리 감기·스킵용). 연출 하나가 예외로 멈춰도 전체가 멈추지 않도록 `Tween.Safe`로 감싼다.
 - **입력 제한**: `PresentationPlayer.IsPlaying` 동안 `BattleSession.TrySubmit`이 명령을 거절한다. 손패 카드를 집어 끄는 것은 되지만 내기·대상 선택·공격은 안 된다 (GameDesign §7.3).
+
+## 5.0 컴퓨터 차례 표시 (M3 4단계)
+
+- 상대가 카드를 내면 `BigCardOverlay`가 화면 가운데에 `CardDetailView`(이름·코스트·능력치·키워드 설명·효과 설명)를 크게 띄운다: 커지며 등장 → 1.1초 보여 줌(클릭하면 바로 넘김) → 사라짐. 그동안 3D 카드는 바로 칸으로 간다(주문은 옆에 떠서 효과 처리를 보여 줌). 내 카드는 크게 띄우지 않는다.
+- 컴퓨터 행동 간격 `AiPacing`: 다음 행동을 먼저 고른 뒤 종류별로 쉰다 (카드 내기 0.75초, 공격 0.6초, 턴 종료 0.7초, 체인 선택 0.45초, 모두 연출 배속 적용). 그동안 HUD에 "상대가 생각 중…".
 
 ## 5.1 입력 (M3 3단계)
 

@@ -20,6 +20,7 @@ namespace TCG.Client.Board
 
         TextMeshProUGUI _turn, _mine, _theirs, _banner, _hint;
         UnityEngine.UI.Button _endTurn;
+        TextMeshProUGUI _thinking;
         int _hintVersion;
         readonly Line[] _lines = { new Line { Who = "나" }, new Line { Who = "상대" } };
         int _bannerVersion;
@@ -50,6 +51,10 @@ namespace TCG.Client.Board
             view._hint.rectTransform.sizeDelta = new Vector2(1200, 60);
             view._hint.color = new Color(1f, 0.85f, 0.45f);
             view._hint.text = "";
+            view._thinking = Text(go.transform, "Thinking", new Vector2(0.5f, 1f), new Vector2(0, -70), 24, TextAlignmentOptions.Top);
+            view._thinking.color = new Color(1f, 0.75f, 0.5f, 0.9f);
+            view._thinking.text = "";
+            view.BigCard = BigCardOverlay.Create(go.transform);
             return view;
         }
 
@@ -70,6 +75,11 @@ namespace TCG.Client.Board
         }
 
         public string TurnText => _turn.text;
+        /// <summary>상대 카드 크게 띄우기.</summary>
+        public BigCardOverlay BigCard { get; private set; }
+
+        /// <summary>컴퓨터가 다음 행동을 고르는 동안 "상대가 생각 중…" 표시.</summary>
+        public void SetThinking(bool thinking) => _thinking.text = thinking ? "상대가 생각 중…" : "";
         public string HintText => _hint.text;
         public UnityEngine.UI.Button EndTurnButton => _endTurn;
 
