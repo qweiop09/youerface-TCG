@@ -17,7 +17,11 @@ namespace TCG.Tests.Client
     public class FlowPlayModeTests
     {
         [TearDown]
-        public void ResetLaunch() => BattleLaunch.Difficulty = AiDifficulty.Normal;
+        public void ResetLaunch()
+        {
+            BattleLaunch.Difficulty = AiDifficulty.Normal;
+            BattleLaunch.DeckKey = null;
+        }
 
         [UnityTest]
         [Timeout(900000)]

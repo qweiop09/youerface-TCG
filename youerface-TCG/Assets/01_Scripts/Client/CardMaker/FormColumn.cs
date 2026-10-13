@@ -63,6 +63,16 @@ namespace TCG.Client.CardMaker
 
         public void Space(float height) => _y -= height;
 
+        /// <summary>폭 전체를 쓰는 빈 줄 (안을 직접 꾸민다).</summary>
+        public RectTransform Block(string name, float height)
+        {
+            var rect = UiFactory.Rect(Content, name, new Vector2(0.5f, 1f), new Vector2(0, _y - height * 0.5f), new Vector2(_width, height));
+            _y -= height + Gap;
+            return rect;
+        }
+
+        public float Width => _width;
+
         public void Header(string text)
         {
             _y -= 6f;

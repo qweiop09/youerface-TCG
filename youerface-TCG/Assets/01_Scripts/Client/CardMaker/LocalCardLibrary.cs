@@ -39,28 +39,30 @@ namespace TCG.Client.CardMaker
 
         string PathOf(string id) => Path.Combine(_root, Safe(id) + ".json");
 
-        /// <summary>파일 이름에 쓸 수 없는 글자를 막는다 (ID는 편집기가 c_+16진수로 만든다).</summary>
-        static string Safe(string id)
+        /// <summary>파일 이름에 쓸 수 없는 글자를 막는다 (ID는 편집기가 c_+16진수로 만든다). 덱 보관함도 같이 쓴다.</summary>
+        internal static string Safe(string id)
         {
             if (string.IsNullOrEmpty(id))
-                throw new ArgumentException("카드 ID가 없습니다.");
+                throw new ArgumentException("ID가 없습니다.");
             foreach (char c in id)
             {
                 if (!(char.IsLetterOrDigit(c) || c == '_' || c == '-'))
-                    throw new ArgumentException("카드 ID에 쓸 수 없는 글자가 있습니다: " + id);
+                    throw new ArgumentException("ID에 쓸 수 없는 글자가 있습니다: " + id);
             }
             return id;
         }
 
-        public void Save(CardDefinition card)
+        /// <summary>임시 파일에 쓰고 옮긴다 (쓰다 끊겨도 기존 파일이 깨지지 않게).</summary>
+        internal static void WriteAtomic(string path, string text)
         {
-            string path = PathOf(card.Id);
             string temp = path + ".tmp";
-            File.WriteAllText(temp, CardSerializer.Serialize(card));
+            File.WriteAllText(temp, text);
             if (File.Exists(path))
                 File.Delete(path);
             File.Move(temp, path);
         }
+
+        public void Save(CardDefinition card) => WriteAtomic(PathOf(card.Id), CardSerializer.Serialize(card));
 
         public bool Exists(string id) => File.Exists(PathOf(id));
 

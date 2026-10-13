@@ -20,6 +20,7 @@ namespace TCG.EditorTools
         public const string TitleScenePath = "Assets/00_Scenes/Title.unity";
         public const string BattleScenePath = "Assets/00_Scenes/Battle.unity";
         public const string CardMakerScenePath = "Assets/00_Scenes/CardMaker.unity";
+        public const string DeckBuilderScenePath = "Assets/00_Scenes/DeckBuilder.unity";
         const string MaterialsFolder = "Assets/03_Datas/Resources/Materials";
 
         [MenuItem("TCG/Setup/All")]
@@ -30,6 +31,7 @@ namespace TCG.EditorTools
             BuildBattleScene();
             BuildTitleScene();
             BuildCardMakerScene();
+            BuildDeckBuilderScene();
         }
 
         /// <summary>
@@ -142,7 +144,16 @@ namespace TCG.EditorTools
 
         /// <summary>CardMaker 장면(카드 제작): 카메라 + CardMakerScreen.</summary>
         [MenuItem("TCG/Setup/Build CardMaker Scene")]
-        public static void BuildCardMakerScene()
+        public static void BuildCardMakerScene() =>
+            BuildScreenScene<TCG.Client.CardMaker.CardMakerScreen>(CardMakerScenePath, "CardMaker");
+
+        /// <summary>DeckBuilder 장면(덱 편집): 카메라 + DeckBuilderScreen.</summary>
+        [MenuItem("TCG/Setup/Build DeckBuilder Scene")]
+        public static void BuildDeckBuilderScene() =>
+            BuildScreenScene<TCG.Client.DeckBuilder.DeckBuilderScreen>(DeckBuilderScenePath, "DeckBuilder");
+
+        /// <summary>UI만 있는 장면: 카메라 + 화면 컴포넌트 하나 (화면은 Start에서 코드로 UI를 만든다).</summary>
+        static void BuildScreenScene<T>(string path, string objectName) where T : Component
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -153,17 +164,17 @@ namespace TCG.EditorTools
             cameraGo.AddComponent<UniversalAdditionalCameraData>();
             cameraGo.AddComponent<AudioListener>();
 
-            new GameObject("CardMaker").AddComponent<TCG.Client.CardMaker.CardMakerScreen>();
+            new GameObject(objectName).AddComponent<T>();
 
-            EditorSceneManager.SaveScene(scene, CardMakerScenePath);
+            EditorSceneManager.SaveScene(scene, path);
             RegisterScenes();
-            Debug.Log($"[Setup] Built {CardMakerScenePath}");
+            Debug.Log($"[Setup] Built {path}");
         }
 
-        /// <summary>빌드 목록: Title(첫 장면) → Battle → CardMaker → 나머지. 아직 없는 장면은 건너뛴다.</summary>
+        /// <summary>빌드 목록: Title(첫 장면) → Battle → CardMaker → DeckBuilder → 나머지. 아직 없는 장면은 건너뛴다.</summary>
         static void RegisterScenes()
         {
-            var first = new[] { TitleScenePath, BattleScenePath, CardMakerScenePath }.Where(File.Exists).ToList();
+            var first = new[] { TitleScenePath, BattleScenePath, CardMakerScenePath, DeckBuilderScenePath }.Where(File.Exists).ToList();
             var scenes = first.Select(path => new EditorBuildSettingsScene(path, true)).ToList();
             scenes.AddRange(EditorBuildSettings.scenes.Where(s => !first.Contains(s.path)));
             EditorBuildSettings.scenes = scenes.ToArray();

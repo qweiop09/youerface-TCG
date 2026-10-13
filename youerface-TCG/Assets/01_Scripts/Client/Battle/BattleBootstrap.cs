@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TCG.Client.Board;
 using TCG.Client.Common;
 using TCG.Client.Flow;
@@ -14,7 +15,7 @@ using UnityEngine;
 namespace TCG.Client.Battle
 {
     /// <summary>
-    /// Battle 장면 시작점. 샘플 덱으로 대전을 만들고 보드·연출·입력을 붙인다.
+    /// Battle 장면 시작점. 시작 화면에서 고른 덱(없으면 샘플 덱 두 개)으로 대전을 만들고 보드·연출·입력을 붙인다.
     /// 기본은 사람(아래) vs 컴퓨터(위). 관전 모드면 양쪽 다 컴퓨터가 둔다.
     /// 시작 화면에서 왔으면(<see cref="BattleLaunch"/>) 고른 난이도·시드로 시작하고, 끝나면 결과 화면(<see cref="ResultPanel"/>)을 띄운다.
     /// <see cref="Build"/>는 Play가 아닐 때(에디터 화면 캡처)도 호출할 수 있다 (그때는 상태를 연출 없이 그림).
@@ -37,6 +38,7 @@ namespace TCG.Client.Battle
         [SerializeField] float _speed = 1f;
 
         Transform _root;
+        BattleDecks _decks;
 
         public const int Viewer = 0;
         public BattleSession Session { get; private set; }
@@ -78,10 +80,11 @@ namespace TCG.Client.Battle
 
         void Start()
         {
-            if (BattleLaunch.TryConsume(out var difficulty, out int seed))
+            if (BattleLaunch.TryConsume(out var difficulty, out int seed, out var decks))
             {
                 _topAi = difficulty;
                 _seed = seed;
+                _decks = decks;
             }
             Build();
         }
@@ -95,14 +98,23 @@ namespace TCG.Client.Battle
             Result = null;
 
             var camera = _camera != null ? _camera : Camera.main;
-            var catalog = SampleData.LoadCatalog();
-            var decks = SampleData.LoadDecks();
+            List<CardDefinition> deck0, deck1;
+            if (_decks != null)
+            {
+                deck0 = _decks.Player;
+                deck1 = _decks.Opponent;
+            }
+            else
+            {
+                var catalog = SampleData.LoadCatalog();
+                var decks = SampleData.LoadDecks();
+                deck0 = catalog.Resolve(decks[0]);
+                deck1 = catalog.Resolve(decks[1 % decks.Count]);
+            }
 
             var engine = new GameEngine();
             var ai = new[] { AiPlayers.Create(_bottomAi, _seed, engine), AiPlayers.Create(_topAi, _seed + 1, engine) };
             var state = new GameState(RuleConfig.CreateDefault(), _seed);
-            var deck0 = catalog.Resolve(decks[0]);
-            var deck1 = catalog.Resolve(decks[1 % decks.Count]);
             engine.StartGame(state, deck0, deck1);
             for (int i = 0; i < _previewSteps && state.Phase == GamePhase.InProgress; i++)
             {

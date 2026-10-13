@@ -46,7 +46,7 @@ namespace TCG.Tests.Client
         /// <summary>
         /// Overlay UI까지 찍는다. batchmode에선 WaitForEndOfFrame이 오지 않아, 잠깐 Overlay 캔버스를 임시 카메라용으로 바꿔 렌더한다.
         /// </summary>
-        static IEnumerator CaptureScreen(string path)
+        internal static IEnumerator CaptureScreen(string path)
         {
             yield return null;
             var cameraGo = new GameObject("CaptureCamera");

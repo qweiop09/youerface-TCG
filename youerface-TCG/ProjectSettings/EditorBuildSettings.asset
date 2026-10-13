@@ -15,6 +15,9 @@ EditorBuildSettings:
     path: Assets/00_Scenes/CardMaker.unity
     guid: 050e1d76f3fd5461da6badafd17b3e2c
   - enabled: 1
+    path: Assets/00_Scenes/DeckBuilder.unity
+    guid: 2900701889ed14f1fb6ce4488ceb47a0
+  - enabled: 1
     path: Assets/00_Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
   m_configObjects:

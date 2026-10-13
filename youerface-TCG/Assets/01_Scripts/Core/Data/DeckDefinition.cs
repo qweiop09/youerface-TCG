@@ -42,49 +42,4 @@ namespace TCG.Core.Data
             return result;
         }
     }
-
-    /// <summary>덱 규칙 검사 (장수·같은 카드 매수·카드 유효성). 빈 목록이면 유효.</summary>
-    public static class DeckValidator
-    {
-        public static IReadOnlyList<string> Validate(DeckDefinition deck, CardCatalog catalog, RuleConfig rules)
-        {
-            var errors = new List<string>();
-            if (deck?.Cards == null)
-            {
-                errors.Add("덱이 비어 있습니다.");
-                return errors;
-            }
-
-            if (deck.Cards.Count != rules.DeckSize)
-                errors.Add($"덱은 {rules.DeckSize}장이어야 합니다 (현재 {deck.Cards.Count}장).");
-
-            var counted = new List<string>();
-            for (int i = 0; i < deck.Cards.Count; i++)
-            {
-                string id = deck.Cards[i];
-                if (counted.Contains(id))
-                    continue;
-                counted.Add(id);
-
-                int copies = 0;
-                for (int k = 0; k < deck.Cards.Count; k++)
-                {
-                    if (deck.Cards[k] == id)
-                        copies++;
-                }
-                if (copies > rules.MaxCopiesPerCard)
-                    errors.Add($"'{id}'는 {rules.MaxCopiesPerCard}장까지 넣을 수 있습니다 (현재 {copies}장).");
-
-                if (!catalog.TryGet(id, out var card))
-                {
-                    errors.Add($"없는 카드입니다: {id}");
-                    continue;
-                }
-                var cardErrors = CardValidator.Validate(card);
-                for (int e = 0; e < cardErrors.Count; e++)
-                    errors.Add($"{id}: {cardErrors[e]}");
-            }
-            return errors;
-        }
-    }
 }

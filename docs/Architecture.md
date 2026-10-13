@@ -199,8 +199,8 @@ youerface-TCG/Assets/
 ## 5.2 흐름: 시작 화면 → 대전 → 결과 (M3 5단계)
 
 - 장면 두 개: `Title`(빌드 첫 장면) → `Battle`. 둘 다 `ProjectSetup`(TCG/Setup/Build Title Scene·Build Battle Scene)이 코드로 만들고 빌드 목록 순서(Title, Battle, 나머지)를 맞춘다.
-- `TitleScreen`: 난이도 4개(쉬움·보통·어려움·챌린지) 중 하나 + "대전 시작". 덱은 양쪽 샘플 덱 고정(덱 선택은 나중에), 연출 배속 설정은 넣지 않음(사용자 결정 2026-10-13).
-- `BattleLaunch`(static): 고른 난이도와 새 시드를 들고 Battle 장면을 연다. `BattleBootstrap.Start`가 요청을 한 번 읽어(`TryConsume`) 상대(위쪽) 컴퓨터 난이도·시드로 쓴다. 요청 없이 Battle 장면을 바로 열면(기존 PlayMode 테스트·에디터 Play) 장면에 저장된 설정 그대로.
+- `TitleScreen`: 난이도 4개(쉬움·보통·어려움·챌린지) 중 하나 + 덱 선택(◀ 덱 ▶) + "대전 시작". 연출 배속 설정은 넣지 않음(사용자 결정 2026-10-13). 덱 선택은 M5-4(§7.2).
+- `BattleLaunch`(static): 고른 난이도·새 시드·덱(`BattleDecks`: 양쪽 카드 정의 목록, 없으면 샘플 덱 두 개)을 들고 Battle 장면을 연다. `BattleBootstrap.Start`가 요청을 한 번 읽어(`TryConsume`) 상대(위쪽) 컴퓨터 난이도·시드·덱으로 쓴다. "다시 하기"는 같은 덱. 요청 없이 Battle 장면을 바로 열면(기존 PlayMode 테스트·에디터 Play) 장면에 저장된 설정 그대로.
 - 결과: 대전이 끝나고 연출이 다 끝나면 `BattleBootstrap`이 HUD 위에 `ResultPanel`(승리/패배/무승부, 상대 난이도·턴 수, "다시 하기"=같은 난이도 새 시드로 Battle 다시 열기, "난이도 선택으로"=Title)을 덮는다. 반투명 배경이 아래 클릭을 막는다.
 
 ## 6. 네트워크
@@ -234,6 +234,16 @@ youerface-TCG/Assets/
 - 편집 규칙 도우미는 Core `CardEditing`(새 카드·효과 기본값, 종류·행동·대상·조건을 바꿀 때 맞지 않는 값 정리, JSON 왕복 복사). 편집기 입력 범위(스탯 0~20 등)는 규칙값이 아니라 화면 상수.
 - 점수 표시: 실제 값(음수 가능), 표시 점수와 다르면 "(카드 표시 n)"도. 항목별 내역(기본·스탯·코스트·키워드 합·효과 합·패널티 상한).
 - 저장: `LocalCardLibrary` → `persistentDataPath/Cards/<카드 ID>.json`(카드 JSON 그대로, 임시 파일→이동). 카드 ID는 Client가 `c_` + 12자리 16진수로 만든다(Core 로직 아님). "내 카드" 창에서 열기·삭제(두 번 눌러 확인), "복제"는 새 ID로 열기(저장은 따로), 바뀐 게 있으면 경로 옆에 "저장 안 됨".
+
+## 7.2 덱 빌더 (M5)
+
+- Core `DeckValidator.Check(deck, catalog, rules, scores?, registry?)` → `DeckReport`: 문제 목록(`DeckIssue`: `WrongSize`·`TooManyCopies`·`MissingCard`·`InvalidCard`, 카드 ID 포함, 장수 → 덱에 처음 나온 카드 순), 코스트 분포(`CostCurveBuckets`=8, 마지막 칸 7+ — 화면 상수), 종류별 장수, 점수 합계(`ScoreCalculator.Calculate` 실제 값)·최고 점수. 점수는 참고 정보이고 덱 제한이 아님(GameDesign §6). `Validate`는 문구만(기존 호환). `CanAdd`: 한 장 더 넣을 수 있는지(장수·매수·`CardValidator`). 소환물 종류 카드는 `CardValidator`가 막는다.
+- Core `DeckEditing`: `Add`(같은 카드 뒤에 붙임)·`RemoveOne`(마지막 것)·`Count`·`Distinct`(처음 나온 순)·`Sort`(코스트 → 이름 → ID, 없는 카드 맨 뒤).
+- 장면 `DeckBuilder.unity`(TCG/Setup/Build DeckBuilder Scene, 빌드 목록 Title→Battle→CardMaker→DeckBuilder), 시작 화면 오른쪽 아래 "덱 편집" 버튼.
+- `CardPool`(Client): 내 카드(`LocalCardLibrary`, 최근 수정 순) + 샘플 카드(Resources). ID가 겹치면 먼저 들어온 것만. 덱 편집 화면·시작 화면이 같은 모음으로 덱을 해석한다.
+- `DeckBuilderScreen`: 왼쪽 필터(출처 전체/내 카드/샘플, 종류, 코스트 0~6·7 이상, 점수 N 이하, 정렬 코스트/점수 높은·낮은/이름/최근 만든) + 카드 목록(줄 클릭=미리보기, + = 넣기, 못 넣으면 흐린 +), 가운데 `CardDetailView`(0.82배)·코스트 분포 막대·종류별 장수·점수 합계/평균/최고, 오른쪽 덱 이름·"덱 n / 30장"·검사 결과·덱 카드(보이는 순서만 코스트순, −/+).
+- 저장: `LocalDeckLibrary` → `persistentDataPath/Decks/<덱 ID>.json`(덱 JSON v1, 임시 파일→이동, `LocalCardLibrary.Safe/WriteAtomic` 공유). 덱 ID는 `d_` + 12자리 16진수. 규칙에 안 맞아도 저장 가능(대전 선택지에서만 빠짐). "내 덱" 창: 열기·삭제(두 번), 샘플 덱 "복사해서 열기".
+- 시작 화면 덱 선택(M5-4): 선택지 = 샘플 덱(키 `sample:<ID>`) + 검사를 통과한 내 덱. 걸린 덱 수는 안내 문구로. 마지막 선택은 `BattleLaunch.DeckKey`. 상대 = 내 덱과 ID가 다른 첫 샘플 덱.
 
 ## 8. 이전 프로젝트(ProjectNeoulgyeol) 차용 목록
 
