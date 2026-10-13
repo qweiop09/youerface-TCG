@@ -131,5 +131,16 @@ namespace TCG.Tests.Core
             DeckEditing.Sort(deck, Catalog(cheap, x, y));
             Assert.That(deck.Cards, Is.EqualTo(new[] { "z_cheap", "y", "x", "x", "missing" }));
         }
+
+        [Test]
+        public void Editing_RemoveMissing_DropsUnknownCardsOnly()
+        {
+            var deck = Deck("a", "gone", "a", "gone", "b");
+            int removed = DeckEditing.RemoveMissing(deck, Catalog(TestCards.Minion("a"), TestCards.Minion("b")));
+            Assert.That(removed, Is.EqualTo(2));
+            Assert.That(deck.Cards, Is.EqualTo(new[] { "a", "a", "b" }));
+            Assert.That(DeckEditing.Uses(deck, "a"), Is.True);
+            Assert.That(DeckEditing.Uses(deck, "gone"), Is.False);
+        }
     }
 }

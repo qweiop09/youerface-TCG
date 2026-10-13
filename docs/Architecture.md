@@ -241,8 +241,9 @@ youerface-TCG/Assets/
 - Core `DeckEditing`: `Add`(같은 카드 뒤에 붙임)·`RemoveOne`(마지막 것)·`Count`·`Distinct`(처음 나온 순)·`Sort`(코스트 → 이름 → ID, 없는 카드 맨 뒤).
 - 장면 `DeckBuilder.unity`(TCG/Setup/Build DeckBuilder Scene, 빌드 목록 Title→Battle→CardMaker→DeckBuilder), 시작 화면 오른쪽 아래 "덱 편집" 버튼.
 - `CardPool`(Client): 내 카드(`LocalCardLibrary`, 최근 수정 순) + 샘플 카드(Resources). ID가 겹치면 먼저 들어온 것만. 덱 편집 화면·시작 화면이 같은 모음으로 덱을 해석한다.
-- `DeckBuilderScreen`: 왼쪽 필터(출처 전체/내 카드/샘플, 종류, 코스트 0~6·7 이상, 점수 N 이하, 정렬 코스트/점수 높은·낮은/이름/최근 만든) + 카드 목록(줄 클릭=미리보기, + = 넣기, 못 넣으면 흐린 +), 가운데 `CardDetailView`(0.82배)·코스트 분포 막대·종류별 장수·점수 합계/평균/최고, 오른쪽 덱 이름·"덱 n / 30장"·검사 결과·덱 카드(보이는 순서만 코스트순, −/+).
-- 저장: `LocalDeckLibrary` → `persistentDataPath/Decks/<덱 ID>.json`(덱 JSON v1, 임시 파일→이동, `LocalCardLibrary.Safe/WriteAtomic` 공유). 덱 ID는 `d_` + 12자리 16진수. 규칙에 안 맞아도 저장 가능(대전 선택지에서만 빠짐). "내 덱" 창: 열기·삭제(두 번), 샘플 덱 "복사해서 열기".
+- `DeckBuilderScreen`: 왼쪽 필터(출처 전체/내 카드/샘플, 종류, 코스트 0~6·7 이상, 점수 N 이하, 정렬 코스트/점수 높은·낮은/이름/최근 만든, 검색 — 띄어쓰기로 나눈 낱말 AND: 숫자·"3코"·"3코스트"·"코스트3"은 코스트, 종류 이름과 똑같은 낱말은 종류, 나머지는 이름·키워드·효과 문구(소환물 포함) 포함 검사·대소문자 무시. 검색 칸은 다시 쌓지 않아 입력 중 포커스 유지) + 카드 목록(줄 클릭=미리보기, + = 넣기, 못 넣으면 흐린 +), 가운데 `CardDetailView`(0.82배)·코스트 분포 막대·종류별 장수·점수 합계/평균/최고, 오른쪽 덱 이름·"덱 n / 30장"·검사 결과·덱 카드(보이는 순서만 코스트순, −/+).
+- 저장: `LocalDeckLibrary` → `persistentDataPath/Decks/<덱 ID>.json`(덱 JSON v1, 임시 파일→이동, `LocalCardLibrary.Safe/WriteAtomic` 공유). 덱 ID는 `d_` + 12자리 16진수. 규칙에 안 맞아도 저장 가능(대전 선택지에서만 빠짐). "내 덱" 창: 열기·삭제(두 번), 샘플 덱 "복사해서 열기". 상단 "복제" = 지금 덱을 새 ID로(저장은 따로).
+- 지운 카드: 덱에는 ID가 남아 `MissingCard` 문제(대전 선택지에서 빠짐). 덱 편집 오른쪽에 "없는 카드 n장 빼기"(`DeckEditing.RemoveMissing`). 카드 제작에서 삭제를 처음 누르면 그 카드를 쓰는 내 덱 이름을 상태 줄에 알려 준다(`CardMakerScreen.DecksUsing`, `DeckEditing.Uses`).
 - 시작 화면 덱 선택(M5-4): 선택지 = 샘플 덱(키 `sample:<ID>`) + 검사를 통과한 내 덱. 걸린 덱 수는 안내 문구로. 마지막 선택은 `BattleLaunch.DeckKey`. 상대 = 내 덱과 ID가 다른 첫 샘플 덱.
 
 ## 8. 이전 프로젝트(ProjectNeoulgyeol) 차용 목록

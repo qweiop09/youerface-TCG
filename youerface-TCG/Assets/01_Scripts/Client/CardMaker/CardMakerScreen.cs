@@ -56,6 +56,8 @@ namespace TCG.Client.CardMaker
         public IReadOnlyList<string> Problems { get; private set; } = Array.Empty<string>();
         public string StatusText => _status != null ? _status.text : "";
         public LocalCardLibrary Library { get; set; }
+        /// <summary>카드를 지울 때 그 카드를 쓰는 덱을 알려 주려고 읽는다.</summary>
+        public TCG.Client.DeckBuilder.LocalDeckLibrary Decks { get; set; }
         public bool IsDirty => Card != null && CardSerializer.Serialize(Card, false) != _savedJson;
         public bool LibraryOpen => _libraryPanel != null && _libraryPanel.activeSelf;
 
@@ -65,6 +67,7 @@ namespace TCG.Client.CardMaker
             _audio = gameObject.AddComponent<AudioSource>();
             _audio.playOnAwake = false;
             Library = Library ?? new LocalCardLibrary();
+            Decks = Decks ?? new TCG.Client.DeckBuilder.LocalDeckLibrary();
             Build();
             NewCard();
         }
@@ -477,13 +480,28 @@ namespace TCG.Client.CardMaker
             SetStatus($"'{card.Name}'을(를) 열었습니다.");
         }
 
-        /// <summary>두 번 눌러야 지운다 (첫 번째는 확인 표시).</summary>
+        /// <summary>이 카드를 쓰는 내 덱 이름들.</summary>
+        public List<string> DecksUsing(string id)
+        {
+            var names = new List<string>();
+            foreach (var entry in Decks.List())
+            {
+                if (TCG.Core.Data.DeckEditing.Uses(entry.Deck, id))
+                    names.Add(entry.Deck.Name);
+            }
+            return names;
+        }
+
+        /// <summary>두 번 눌러야 지운다 (첫 번째는 확인 표시, 쓰는 덱이 있으면 상태 줄에 안내).</summary>
         public void DeleteFromLibrary(string id)
         {
             if (_pendingDelete != id)
             {
                 _pendingDelete = id;
                 RefreshLibrary();
+                var users = DecksUsing(id);
+                SetStatus(users.Count == 0 ? "" :
+                    $"이 카드를 쓰는 덱 {users.Count}개: {string.Join(", ", users)} — 지우면 덱에 '없는 카드'로 남습니다(덱 편집에서 뺄 수 있음).");
                 return;
             }
             Library.Delete(id);

@@ -50,11 +50,14 @@ namespace TCG.Client.DeckBuilder
         readonly RuleConfig _rules = RuleConfig.CreateDefault();
         readonly ScoreTable _scoreTable = ScoreTable.CreateDefault();
         readonly Dictionary<string, int> _scores = new Dictionary<string, int>();
+        /// <summary>카드 ID → 검색 대상 글(소문자).</summary>
+        readonly Dictionary<string, string> _searchText = new Dictionary<string, string>();
         readonly Image[] _curveBars = new Image[DeckReport.CostCurveBuckets];
         readonly TextMeshProUGUI[] _curveCounts = new TextMeshProUGUI[DeckReport.CostCurveBuckets];
 
         Canvas _canvas;
-        RectTransform _filterBar;
+        RectTransform _filterBar, _filterCells;
+        TMP_InputField _search;
         FormColumn _cardList, _deckList, _libraryList;
         GameObject _libraryPanel;
         CardDetailView _preview;
@@ -77,6 +80,12 @@ namespace TCG.Client.DeckBuilder
         /// <summary>점수 N 이하만 (카드 실제 점수 기준).</summary>
         public int? ScoreMax { get; private set; }
         public SortMode Sort { get; private set; } = SortMode.Cost;
+        /// <summary>
+        /// 검색어. 띄어쓰기로 나눈 낱말이 전부 맞아야 한다(AND). 숫자만("3")이나 "3코"·"3코스트"·"코스트3"은 코스트,
+        /// 종류 이름과 똑같은 낱말("기물"·"주문"·"필드"·"동료")은 종류,
+        /// 나머지는 이름·키워드·효과 문구(소환물 포함)에 들어 있는지 (대소문자 무시). 비면 전부.
+        /// </summary>
+        public string Search { get; private set; } = "";
 
         public string StatusText => _status != null ? _status.text : "";
         public bool IsDirty => Deck != null && DeckSerializer.Serialize(Deck, false) != _savedJson;
@@ -103,10 +112,19 @@ namespace TCG.Client.DeckBuilder
             UiFactory.Text(root, "Title", "덱 편집", new Vector2(0.5f, 1f), new Vector2(80, -50), new Vector2(500, 70), 44).fontStyle = FontStyles.Bold;
             UiFactory.Button(root, "New", "새 덱", new Vector2(1f, 1f), new Vector2(-110, -50), new Vector2(180, 70), BarColor, NewDeck, 28);
             UiFactory.Button(root, "Library", "내 덱", new Vector2(1f, 1f), new Vector2(-300, -50), new Vector2(180, 70), BarColor, OpenLibrary, 28);
-            UiFactory.Button(root, "Save", "저장", new Vector2(1f, 1f), new Vector2(-490, -50), new Vector2(180, 70), new Color(0.2f, 0.5f, 0.3f), Save, 28);
+            UiFactory.Button(root, "Duplicate", "복제", new Vector2(1f, 1f), new Vector2(-490, -50), new Vector2(180, 70), BarColor, Duplicate, 28);
+            UiFactory.Button(root, "Save", "저장", new Vector2(1f, 1f), new Vector2(-680, -50), new Vector2(180, 70), new Color(0.2f, 0.5f, 0.3f), Save, 28);
 
             // 왼쪽: 필터 + 카드 목록
             _filterBar = UiFactory.Rect(root, "Filters", new Vector2(0f, 1f), new Vector2(410, -170), new Vector2(760, 120));
+            _filterCells = UiFactory.Stretch(_filterBar, "Cells");
+            // 검색 칸은 다시 쌓지 않는다 (입력 중 포커스 유지)
+            _search = UiFactory.InputField(_filterBar, "Search", new Vector2(0f, 1f), new Vector2(253f * 2 + 85f, -88), new Vector2(170, 50), 22);
+            ((TextMeshProUGUI)_search.placeholder).text = "이름·효과·3코";
+            _search.characterLimit = MaxNameLength;
+            _search.onValueChanged.AddListener(SetSearch);
+            _visibleCount = UiFactory.Text(_filterBar, "Visible", "", new Vector2(0f, 1f), new Vector2(253f * 2 + 210f, -88), new Vector2(76, 50), 20);
+            _visibleCount.color = MutedColor;
             _cardList = FormColumn.Create(root, "CardList", new Vector2(0f, 0.5f), new Vector2(410, -95), new Vector2(760, 780));
 
             // 가운데: 미리보기 + 덱 요약
@@ -152,8 +170,12 @@ namespace TCG.Client.DeckBuilder
         {
             Pool = CardPool.Load(Cards);
             _scores.Clear();
+            _searchText.Clear();
             foreach (var card in Pool.Cards)
+            {
                 _scores[card.Id] = ScoreCalculator.Calculate(card, _scoreTable);
+                _searchText[card.Id] = SearchTextOf(card);
+            }
             if (Deck != null)
                 Refresh();
         }
@@ -224,6 +246,15 @@ namespace TCG.Client.DeckBuilder
         public void SetScoreMax(int? value) { ScoreMax = value; Refresh(); }
         public void SetSort(SortMode value) { Sort = value; Refresh(); }
 
+        /// <summary>검색어가 바뀌면 카드 목록만 다시 쌓는다.</summary>
+        public void SetSearch(string value)
+        {
+            Search = value ?? "";
+            if (_search.text != Search)
+                _search.SetTextWithoutNotify(Search);
+            BuildCardList();
+        }
+
         public void SetName(string name)
         {
             Deck.Name = name;
@@ -250,22 +281,20 @@ namespace TCG.Client.DeckBuilder
 
         void BuildFilters()
         {
-            for (int i = _filterBar.childCount - 1; i >= 0; i--)
-                Destroy(_filterBar.GetChild(i).gameObject);
+            for (int i = _filterCells.childCount - 1; i >= 0; i--)
+                Destroy(_filterCells.GetChild(i).gameObject);
             FilterCycle(0, 0, "출처", SourceName(Source), d => SetSource(Step(SourceOptions, Source, d)));
             FilterCycle(1, 0, "종류", TypeFilter.HasValue ? KoreanTerms.Of(TypeFilter.Value) : "전체", d => SetTypeFilter(Step(TypeOptions, TypeFilter, d)));
             FilterCycle(2, 0, "코스트", CostName(CostFilter), d => SetCostFilter(Step(CostOptions, CostFilter, d)));
             FilterCycle(0, 1, "점수", ScoreMax.HasValue ? $"{ScoreMax} 이하" : "전체", d => SetScoreMax(Step(ScoreOptions, ScoreMax, d)));
             FilterCycle(1, 1, "정렬", SortName(Sort), d => SetSort(Step(SortOptions, Sort, d)));
-            _visibleCount = UiFactory.Text(_filterBar, "Visible", "", new Vector2(0f, 1f), new Vector2(253f * 2.5f, -88), new Vector2(240, 50), 22);
-            _visibleCount.color = MutedColor;
         }
 
         /// <summary>필터 칸: ◀ 이름: 값 ▶. 3칸 × 2줄.</summary>
         void FilterCycle(int column, int row, string label, string value, Action<int> step)
         {
             const float w = 246f, h = 50f;
-            var cell = UiFactory.Rect(_filterBar, "Filter " + label, new Vector2(0f, 1f), new Vector2(253f * column + w * 0.5f, -32 - row * 56f), new Vector2(w, h));
+            var cell = UiFactory.Rect(_filterCells, "Filter " + label, new Vector2(0f, 1f), new Vector2(253f * column + w * 0.5f, -32 - row * 56f), new Vector2(w, h));
             UiFactory.Panel(cell, "Back", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(w, h), RowColor).raycastTarget = false;
             UiFactory.Button(cell, "Prev", "◀", new Vector2(0f, 0.5f), new Vector2(22, 0), new Vector2(40, h - 6), SmallButton, () => step(-1), 22);
             UiFactory.Text(cell, "Value", $"{label}: {value}", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(w - 90, h), 22);
@@ -291,9 +320,88 @@ namespace TCG.Client.DeckBuilder
                 }
                 if (ScoreMax.HasValue && ScoreOf(card.Id) > ScoreMax.Value)
                     continue;
+                if (!MatchesSearch(card))
+                    continue;
                 VisibleCards.Add(card);
             }
             VisibleCards.Sort(Compare);
+        }
+
+        bool MatchesSearch(CardDefinition card)
+        {
+            var terms = Search.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (terms.Length == 0)
+                return true;
+            _searchText.TryGetValue(card.Id, out string text);
+            foreach (var term in terms)
+            {
+                if (TryParseCost(term, out int cost))
+                {
+                    if (card.Cost != cost)
+                        return false;
+                }
+                else if (TryParseType(term, out var type))
+                {
+                    if (card.Type != type)
+                        return false;
+                }
+                else if (text == null || !text.Contains(term.ToLowerInvariant()))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>종류 이름과 똑같은 낱말("기물", "주문" …)은 종류로 찾는다 (효과 문구의 "적 기물" 등과 섞이지 않게).</summary>
+        static bool TryParseType(string term, out CardType type)
+        {
+            foreach (CardType t in Enum.GetValues(typeof(CardType)))
+            {
+                if (KoreanTerms.Of(t) == term)
+                {
+                    type = t;
+                    return true;
+                }
+            }
+            type = default;
+            return false;
+        }
+
+        /// <summary>"3", "3코", "3코스트", "코스트3" → 3.</summary>
+        static bool TryParseCost(string term, out int cost)
+        {
+            string digits = term;
+            if (digits.StartsWith("코스트")) digits = digits.Substring(3);
+            else if (digits.EndsWith("코스트")) digits = digits.Substring(0, digits.Length - 3);
+            else if (digits.EndsWith("코")) digits = digits.Substring(0, digits.Length - 1);
+            return int.TryParse(digits, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out cost);
+        }
+
+        /// <summary>이름·종류·키워드·효과 문구. 소환물 생성 효과는 소환물의 이름·효과도 넣는다.</summary>
+        static string SearchTextOf(CardDefinition card)
+        {
+            var sb = new System.Text.StringBuilder();
+            AppendSearchText(sb, card);
+            return sb.ToString().ToLowerInvariant();
+        }
+
+        static void AppendSearchText(System.Text.StringBuilder sb, CardDefinition card)
+        {
+            sb.Append(card.Name).Append('\n').Append(KoreanTerms.Of(card.Type)).Append('\n');
+            if (card.Keywords != null)
+            {
+                foreach (var keyword in card.Keywords)
+                    sb.Append(KoreanTerms.Of(keyword)).Append('\n');
+            }
+            if (card.Effects == null)
+                return;
+            foreach (var effect in card.Effects)
+            {
+                sb.Append(EffectText.Describe(effect)).Append('\n');
+                if (effect.Action?.Summon != null)
+                    AppendSearchText(sb, effect.Action.Summon);
+            }
         }
 
         int Compare(CardDefinition a, CardDefinition b)
@@ -319,7 +427,7 @@ namespace TCG.Client.DeckBuilder
         void BuildCardList()
         {
             ComputeVisible();
-            _visibleCount.text = $"{VisibleCards.Count}장 보임";
+            _visibleCount.text = $"{VisibleCards.Count}장";
             var f = _cardList;
             f.Clear();
             if (VisibleCards.Count == 0)
@@ -376,6 +484,9 @@ namespace TCG.Client.DeckBuilder
                 f.Note("규칙 검사 통과 — 대전에 쓸 수 있습니다.", OkColor);
             else
                 f.Note("· " + string.Join("\n· ", Report.Messages()), ErrorColor, 22);
+            int missing = MissingCount();
+            if (missing > 0)
+                f.Buttons("", ($"없는 카드 {missing}장 빼기", () => RemoveMissingCards()));
             f.Space(6f);
 
             // 보여 주는 순서만 코스트순 (저장 순서는 넣은 순서 그대로)
@@ -398,6 +509,17 @@ namespace TCG.Client.DeckBuilder
                 f.Note("왼쪽 목록에서 + 로 카드를 넣으세요.", MutedColor);
             f.Finish();
             RefreshHeading();
+        }
+
+        int MissingCount()
+        {
+            int n = 0;
+            foreach (var id in Deck.Cards)
+            {
+                if (!Pool.Catalog.TryGet(id, out _))
+                    n++;
+            }
+            return n;
         }
 
         void RefreshSummary()
@@ -534,6 +656,27 @@ namespace TCG.Client.DeckBuilder
             RefreshLibrary();
             RefreshHeading();
             SetStatus("덱을 지웠습니다.");
+        }
+
+        /// <summary>지금 덱을 새 ID로 복사해 연다(저장은 따로).</summary>
+        public void Duplicate()
+        {
+            var copy = Clone(Deck);
+            copy.Id = NewId();
+            copy.Name = TrimName((copy.Name ?? "") + " 복사본");
+            Open(copy);
+            _savedJson = null;
+            Refresh();
+            SetStatus("복사본을 만들었습니다. 저장해야 보관됩니다.");
+        }
+
+        /// <summary>카드 모음에 없는 카드(지운 카드)를 덱에서 전부 뺀다.</summary>
+        public int RemoveMissingCards()
+        {
+            int removed = DeckEditing.RemoveMissing(Deck, Pool.Catalog);
+            SetStatus(removed > 0 ? $"없는 카드 {removed}장을 뺐습니다." : "");
+            Refresh();
+            return removed;
         }
 
         /// <summary>샘플 덱을 새 ID로 복사해 연다(저장은 따로).</summary>

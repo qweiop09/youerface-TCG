@@ -95,6 +95,7 @@ namespace TCG.Tests.Client
             yield return null;
             var screen = UnityEngine.Object.FindAnyObjectByType<CardMakerScreen>();
             screen.Library = new LocalCardLibrary(Path.Combine(_dir, "cards"));
+            screen.Decks = new TCG.Client.DeckBuilder.LocalDeckLibrary(Path.Combine(_dir, "decks"));
 
             // 새 카드: 1코스트 1/1 기물 → -10 + 20 - 20
             Assert.That(screen.Card.Type, Is.EqualTo(CardType.Minion));
@@ -158,8 +159,10 @@ namespace TCG.Tests.Client
                 yield return CaptureScreen(Path.Combine(dir, "cardmaker_library.png"));
             }
             string copyId = screen.Card.Id;
+            screen.Decks.Save(new DeckDefinition { Id = "d_user", Name = "쓰는 덱", Cards = { copyId } });
             screen.DeleteFromLibrary(copyId);
             Assert.That(screen.Library.Exists(copyId), Is.True, "첫 번째는 확인만");
+            Assert.That(screen.StatusText, Does.Contain("쓰는 덱"), "이 카드를 쓰는 덱 안내");
             screen.DeleteFromLibrary(copyId);
             Assert.That(screen.Library.Exists(copyId), Is.False);
 

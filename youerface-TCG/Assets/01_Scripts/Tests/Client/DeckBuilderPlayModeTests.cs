@@ -93,6 +93,21 @@ namespace TCG.Tests.Client
             for (int i = 1; i < screen.VisibleCards.Count; i++)
                 Assert.That(screen.ScoreOf(screen.VisibleCards[i - 1].Id), Is.GreaterThanOrEqualTo(screen.ScoreOf(screen.VisibleCards[i].Id)));
             screen.SetSort(DeckBuilderScreen.SortMode.Cost);
+            screen.SetSearch("C_MI");
+            Assert.That(screen.VisibleCards.Select(c => c.Id), Is.EqualTo(new[] { "c_mine" }), "이름 검색 (대소문자 무시)");
+            screen.SetSearch("2");
+            Assert.That(screen.VisibleCards, Is.Not.Empty);
+            Assert.That(screen.VisibleCards.All(c => c.Cost == 2), Is.True, "숫자만은 코스트");
+            screen.SetSearch("기물 2코");
+            Assert.That(screen.VisibleCards, Is.Not.Empty);
+            Assert.That(screen.VisibleCards.All(c => c.Cost == 2 && c.Type == CardType.Minion), Is.True, "종류 + 코스트 (AND)");
+            screen.SetSearch("주문");
+            Assert.That(screen.VisibleCards, Is.Not.Empty);
+            Assert.That(screen.VisibleCards.All(c => c.Type == CardType.Spell), Is.True);
+            screen.SetSearch("피해");
+            Assert.That(screen.VisibleCards, Is.Not.Empty, "효과 문구 검색");
+            Assert.That(screen.VisibleCards.All(c => c.Effects.Count > 0), Is.True);
+            screen.SetSearch("");
             yield return null;
 
             // 목록의 + 버튼으로 넣기, 같은 카드 3장째는 막힘
@@ -132,6 +147,31 @@ namespace TCG.Tests.Client
                 yield return null;
                 yield return CardMakerPlayModeTests.CaptureScreen(Path.Combine(dir, "deckbuilder.png"));
             }
+
+            // 복제: 새 ID, 저장 안 됨
+            screen.Duplicate();
+            Assert.That(screen.Deck.Id, Is.Not.EqualTo(id));
+            Assert.That(screen.Deck.Name, Does.EndWith("복사본"));
+            Assert.That(screen.Deck.Cards.Count, Is.EqualTo(30));
+            Assert.That(screen.IsDirty, Is.True);
+
+            // 카드를 지우면 덱에 없는 카드로 남고, 버튼으로 뺀다
+            _cards.Delete("c_mine");
+            screen.ReloadPool();
+            Assert.That(screen.Report.Issues.Any(i => i.Kind == DeckIssueKind.MissingCard), Is.True);
+            yield return null;
+            Button cleanup = null;
+            foreach (var b in screen.GetComponentsInChildren<Button>(false))
+            {
+                if (b.name.StartsWith("Button 없는 카드"))
+                    cleanup = b;
+            }
+            Assert.That(cleanup, Is.Not.Null);
+            cleanup.onClick.Invoke();
+            Assert.That(screen.Deck.Cards.Count, Is.EqualTo(29));
+            Assert.That(screen.Report.Issues.Any(i => i.Kind == DeckIssueKind.MissingCard), Is.False);
+            _cards.Save(MyMinion("c_mine", 2));
+            screen.ReloadPool();
 
             // 새 덱 → 내 덱에서 열기 → 삭제(두 번)
             screen.NewDeck();

@@ -243,6 +243,17 @@ namespace TCG.Core.Data
             return true;
         }
 
+        /// <summary>카드 모음에 없는 카드(지운 카드 등)를 전부 뺀다. 뺀 장수를 돌려준다.</summary>
+        public static int RemoveMissing(DeckDefinition deck, CardCatalog catalog)
+        {
+            int before = deck.Cards.Count;
+            deck.Cards.RemoveAll(id => !catalog.TryGet(id, out _));
+            return before - deck.Cards.Count;
+        }
+
+        /// <summary>이 카드를 쓰는 덱인가.</summary>
+        public static bool Uses(DeckDefinition deck, string id) => deck?.Cards != null && deck.Cards.Contains(id);
+
         /// <summary>코스트 → 이름 → ID 순으로 정렬 (같은 카드끼리 붙는다). 없는 카드는 맨 뒤(ID 순).</summary>
         public static void Sort(DeckDefinition deck, CardCatalog catalog)
         {
