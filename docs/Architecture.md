@@ -123,7 +123,7 @@ youerface-TCG/Assets/
 - `onDuplicate`(소환물 필수): `AddNew`(하나 더 놓기) | `RefreshUsage`(기존 소환물 사용 횟수 갱신). "같은 소환물" = 같은 카드 ID의 같은 효과 순번이 만든 소환물.
 - `effects[].activation`: `Mandatory`(강제, 기본값) | `Optional`(선택). 없으면 강제로 읽는다.
 - `keywords`: `Taunt`(도발) | `Stealth`(은신) | `Vanguard`(선봉) | `Exhaust`(일회성, 주문 전용) | `TreasureChest`(보물상자). 붙일 수 있는 카드 종류는 레지스트리가 정하고 `CardValidator`가 검사한다.
-- **점수는 저장하지 않는다.** 항상 `ScoreCalculator.Calculate(card, scoreTable)`로 계산 (패치 시 자동 반영).
+- **점수는 저장하지 않는다.** 항상 `ScoreCalculator`로 계산 (패치 시 자동 반영). 공식은 GameDesign §6.1, 가중치는 `ScoreTable`(Version 1, 블록별 사전 — 표에 없는 블록은 0점·배율 100). `Calculate`=실제 값(음수 가능, 편집 화면·방 규칙), `CalculateDisplay`=카드 표시(최소 0), `CalculateDetailed`=항목별 내역(`ScoreLine`: 기본·스탯·코스트·키워드·효과 순번·하드캡 환급). 새 블록을 추가하면 `ScoreTable`에도 값을 넣고 Version을 올린다.
 - `presentation`(카드): 등장·퇴장 연출 종류(문자열 ID, 기본 `"default"`). 끌 수 없다. `effects[].presentation`: `enabled`(효과 연출 켜기/끄기), `activation`·`resolution`(발동·처리 연출 종류), `hitMode`(`Simultaneous` | `Sequential`, 광역 피격). GameDesign §7.3.
 - 스키마 v1 → v2: `presentationStyle` 문자열을 `presentation.enter/exit`로 옮긴다(중첩 소환물 포함). 덱 JSON은 별도 형식 버전(1): `{ schemaVersion, id, name, cards: [카드 ID…] }`.
 - 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다.
@@ -220,7 +220,7 @@ youerface-TCG/Assets/
 - `IFilePicker`: 데스크톱은 StandaloneFileBrowser 등, 모바일은 NativeFilePicker 등. 플랫폼별 구현 교체.
 - `IUserAssetStore`: 파일을 SHA-256 해시로 `Application.persistentDataPath` 아래에 저장·조회. 카드 JSON은 해시만 참조.
 - 런타임 로드: 이미지 → `Texture2D.LoadImage` 또는 `UnityWebRequestTexture`, 사운드 → `UnityWebRequestMultimedia.GetAudioClip` (OGG/WAV 권장).
-- 가져올 때 크기·길이 제한 검사, 이미지 리사이즈 (제한값은 미정, GameDesign Q10).
+- 가져올 때: 이미지는 크기 제한 없이 받아 유저가 정한 영역(위치·확대)만 카드 그림 비율로 잘라 긴 변 512px로 다시 인코딩해 저장, 사운드는 OGG/WAV 5초 이하만 (GameDesign §9). 파일 선택은 OS 기본 창.
 - 나중에 서버 업로드를 붙여도 해시 참조 구조를 그대로 쓴다.
 
 ## 8. 이전 프로젝트(ProjectNeoulgyeol) 차용 목록
