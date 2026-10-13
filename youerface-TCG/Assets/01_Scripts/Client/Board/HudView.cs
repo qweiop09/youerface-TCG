@@ -55,6 +55,7 @@ namespace TCG.Client.Board
             view._thinking.color = new Color(1f, 0.75f, 0.5f, 0.9f);
             view._thinking.text = "";
             view.BigCard = BigCardOverlay.Create(go.transform);
+            view.Inspect = CardInspectOverlay.Create(go.transform);
             return view;
         }
 
@@ -71,12 +72,15 @@ namespace TCG.Client.Board
             text.fontSize = size;
             text.alignment = alignment;
             text.color = Color.white;
+            text.raycastTarget = false; // 글자 영역이 보드 카드 클릭을 가로채지 않게
             return text;
         }
 
         public string TurnText => _turn.text;
         /// <summary>상대 카드 크게 띄우기.</summary>
         public BigCardOverlay BigCard { get; private set; }
+        /// <summary>카드 확인 (짧은 클릭으로 크게 보기).</summary>
+        public CardInspectOverlay Inspect { get; private set; }
 
         /// <summary>컴퓨터가 다음 행동을 고르는 동안 "상대가 생각 중…" 표시.</summary>
         public void SetThinking(bool thinking) => _thinking.text = thinking ? "상대가 생각 중…" : "";

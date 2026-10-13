@@ -17,20 +17,31 @@ namespace TCG.Client.Interaction
     /// - 대상이 필요한 카드는 놓은 뒤 화살표로 대상을 클릭 (오른쪽 클릭·Esc = 취소).
     /// - 내 기물 누르고 끌기 → 공격 화살표, 대상 위에서 놓으면 공격.
     /// - 연출 중이거나 내 차례가 아니면 내기·대상 선택·공격은 안 된다 (GameDesign §7.3).
+    /// - 카드 클릭(끌지 않고 뗌) → 카드 확인 (앞면이 보이는 보드·손패 카드, 상대 손패 제외).
     /// 고를 수 있는 대상은 초록빛으로 표시한다.
     /// </summary>
     public sealed class BattleInput : MonoBehaviour
     {
-        enum Mode { Idle, Dragging, Targeting, Aiming }
+        enum Mode { Idle, Pressing, Dragging, Targeting, Aiming }
 
         static readonly Color ValidGlow = new Color(0.35f, 1f, 0.45f);
         const float HoldHeight = 1.6f;
+        /// <summary>
+        /// 클릭과 끌기 구분: 이 거리(px)를 넘게 움직이면 끌기(손패 들기·공격 화살표).
+        /// 손패 카드는 이 시간(초)을 넘게 눌러도 들어 올린다. 그 전에 떼면 카드 확인.
+        /// </summary>
+        const float DragPixels = 28f;
+        const float HoldSeconds = 0.45f;
 
         BattleSession _session;
         BoardView _board;
         TargetArrow _arrow;
         Mode _mode;
         CardView _held;
+        CardView _pressed;
+        Vector2 _pressPos;
+        float _pressTime;
+        bool _dragMoved;
         readonly List<CardView> _glowing = new List<CardView>();
         readonly List<int> _validTargets = new List<int>();
 
@@ -55,8 +66,13 @@ namespace TCG.Client.Interaction
             bool cancel = (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
                           || (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame);
 
+            // 카드 확인 창이 열려 있거나 이번 프레임에 닫혔으면 보드 입력을 받지 않는다.
+            var inspect = _board.Hud.Inspect;
+            if (_mode == Mode.Idle && (inspect.IsOpen || inspect.ClosedFrame == Time.frameCount))
+                return;
+
             // 잡고 있던 카드가 효과로 사라졌으면 손을 놓는다.
-            if (_mode != Mode.Idle && _held == null)
+            if (_mode == Mode.Pressing ? _pressed == null : _mode != Mode.Idle && _held == null)
             {
                 ResetState();
                 return;
@@ -68,7 +84,29 @@ namespace TCG.Client.Interaction
                     if (pressed && !PointerOverUi())
                         BeginPress(screen);
                     break;
+                case Mode.Pressing:
+                    // 보드 카드: 끌지 않고 떼면 (누른 시간과 상관없이) 카드 확인. 내 기물을 끌면 공격 화살표.
+                    if (released)
+                    {
+                        var card = _pressed;
+                        ResetState();
+                        Inspect(card);
+                    }
+                    else if ((screen - _pressPos).magnitude > DragPixels && CanAimFrom(_pressed))
+                    {
+                        var card = _pressed;
+                        ResetState();
+                        BeginAim(card);
+                    }
+                    break;
                 case Mode.Dragging:
+                    if (released && !_dragMoved)
+                    {
+                        var card = _held;
+                        CancelHeld();
+                        Inspect(card);
+                        break;
+                    }
                     DragHeld(screen);
                     if (released)
                         DropHeld(screen);
@@ -95,17 +133,41 @@ namespace TCG.Client.Interaction
         void BeginPress(Vector2 screen)
         {
             var card = RaycastCard(screen);
-            if (card == null || card.OwnerIndex != _session.Human)
+            if (card == null)
                 return;
+            _pressPos = screen;
+            _pressTime = Time.unscaledTime;
 
-            if (_board.IsInHand(card))
+            if (card.OwnerIndex == _session.Human && _board.IsInHand(card))
             {
                 _held = card;
                 _held.Held = true;
+                _dragMoved = false;
                 _mode = Mode.Dragging;
                 return;
             }
 
+            // 보드 카드·상대 카드: 짧게 떼면 카드 확인, 끌면 (내 기물이면) 공격.
+            _pressed = card;
+            _mode = Mode.Pressing;
+        }
+
+        bool CanAimFrom(CardView card) =>
+            card != null && card.OwnerIndex == _session.Human && card.Type == CardType.Minion;
+
+        void Inspect(CardView card)
+        {
+            if (card == null || !card.FaceUp)
+                return;
+            var entity = _session.State.FindEntity(card.EntityId);
+            if (entity != null)
+                _board.Hud.Inspect.Show(entity);
+        }
+
+        void BeginAim(CardView card)
+        {
+            if (card == null || card.OwnerIndex != _session.Human)
+                return;
             if (card.Type == CardType.Minion && _session.State.GetPlayer(_session.Human).Minions.FindById(card.EntityId) != null)
             {
                 if (!_session.HumanCanAct)
@@ -129,6 +191,10 @@ namespace TCG.Client.Interaction
 
         void DragHeld(Vector2 screen)
         {
+            // 짧은 클릭과 구분: 조금 움직이거나 오래 누르기 전에는 카드를 들어 올리지 않는다.
+            if (!_dragMoved && (screen - _pressPos).magnitude <= DragPixels && Time.unscaledTime - _pressTime <= HoldSeconds)
+                return;
+            _dragMoved = true;
             if (!PointOnPlane(screen, HoldHeight, out var point))
                 return;
             var t = _held.transform;
@@ -306,6 +372,7 @@ namespace TCG.Client.Interaction
             if (_held != null)
                 _held.Held = false;
             _held = null;
+            _pressed = null;
             _mode = Mode.Idle;
             _arrow.Hide();
             ClearGlow();
