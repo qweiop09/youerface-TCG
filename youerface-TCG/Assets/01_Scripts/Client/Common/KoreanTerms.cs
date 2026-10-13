@@ -1,3 +1,4 @@
+using TCG.Core.AI;
 using TCG.Core.Data;
 
 namespace TCG.Client.Common
@@ -15,6 +16,18 @@ namespace TCG.Client.Common
                 case CardType.Companion: return "동료";
                 case CardType.Summon: return "소환물";
                 default: return type.ToString();
+            }
+        }
+
+        public static string Of(AiDifficulty difficulty)
+        {
+            switch (difficulty)
+            {
+                case AiDifficulty.Easy: return "쉬움";
+                case AiDifficulty.Normal: return "보통";
+                case AiDifficulty.Hard: return "어려움";
+                case AiDifficulty.Challenge: return "챌린지";
+                default: return difficulty.ToString();
             }
         }
 

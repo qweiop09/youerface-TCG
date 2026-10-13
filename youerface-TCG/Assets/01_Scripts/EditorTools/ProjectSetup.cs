@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using TCG.Client.Battle;
+using TCG.Client.Flow;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -16,6 +17,7 @@ namespace TCG.EditorTools
     /// </summary>
     public static class ProjectSetup
     {
+        public const string TitleScenePath = "Assets/00_Scenes/Title.unity";
         public const string BattleScenePath = "Assets/00_Scenes/Battle.unity";
         const string MaterialsFolder = "Assets/03_Datas/Resources/Materials";
 
@@ -25,6 +27,7 @@ namespace TCG.EditorTools
             ImportTmpEssentials();
             CreateBaseMaterials();
             BuildBattleScene();
+            BuildTitleScene();
         }
 
         /// <summary>
@@ -76,7 +79,7 @@ namespace TCG.EditorTools
             Debug.Log($"[Setup] Created {path}");
         }
 
-        /// <summary>Battle 장면: 카메라 + 조명 + BattleBootstrap. 빌드 목록 맨 앞에 등록한다.</summary>
+        /// <summary>Battle 장면: 카메라 + 조명 + BattleBootstrap. 빌드 목록에서 Title 다음에 둔다.</summary>
         [MenuItem("TCG/Setup/Build Battle Scene")]
         public static void BuildBattleScene()
         {
@@ -111,12 +114,38 @@ namespace TCG.EditorTools
             RenderSettings.ambientLight = new Color(0.45f, 0.45f, 0.5f);
 
             EditorSceneManager.SaveScene(scene, BattleScenePath);
+            RegisterScenes();
+            Debug.Log($"[Setup] Built {BattleScenePath}");
+        }
 
-            var scenes = EditorBuildSettings.scenes.Where(s => s.path != BattleScenePath).ToList();
-            scenes.Insert(0, new EditorBuildSettingsScene(BattleScenePath, true));
+        /// <summary>Title 장면(시작 화면): 카메라 + TitleScreen. 빌드 목록 맨 앞(첫 장면)에 등록한다.</summary>
+        [MenuItem("TCG/Setup/Build Title Scene")]
+        public static void BuildTitleScene()
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var cameraGo = new GameObject("Main Camera") { tag = "MainCamera" };
+            var camera = cameraGo.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.05f, 0.06f, 0.08f);
+            cameraGo.AddComponent<UniversalAdditionalCameraData>();
+            cameraGo.AddComponent<AudioListener>();
+
+            new GameObject("Title").AddComponent<TitleScreen>();
+
+            EditorSceneManager.SaveScene(scene, TitleScenePath);
+            RegisterScenes();
+            Debug.Log($"[Setup] Built {TitleScenePath}");
+        }
+
+        /// <summary>빌드 목록: Title(첫 장면) → Battle → 나머지. 아직 없는 장면은 건너뛴다.</summary>
+        static void RegisterScenes()
+        {
+            var first = new[] { TitleScenePath, BattleScenePath }.Where(File.Exists).ToList();
+            var scenes = first.Select(path => new EditorBuildSettingsScene(path, true)).ToList();
+            scenes.AddRange(EditorBuildSettings.scenes.Where(s => !first.Contains(s.path)));
             EditorBuildSettings.scenes = scenes.ToArray();
             AssetDatabase.SaveAssets();
-            Debug.Log($"[Setup] Built {BattleScenePath}");
         }
     }
 }

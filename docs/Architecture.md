@@ -22,7 +22,7 @@ Unity 프로젝트 루트는 `youerface-TCG/` 하위 폴더다.
 
 ```
 youerface-TCG/Assets/
-├─ 00_Scenes/                   Battle.unity (빌드 첫 장면)
+├─ 00_Scenes/                   Title.unity (빌드 첫 장면, 시작 화면) → Battle.unity
 ├─ 01_Scripts/
 │  ├─ Core/                     TCG.Core.asmdef      (noEngineReferences: true)
 │  │  ├─ Data/                  CardDefinition, EffectDefinition, RuleConfig, 열거형
@@ -40,13 +40,14 @@ youerface-TCG/Assets/
 │  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
 │  │  ├─ Cards/                 CardView(보드 위 3D 카드), CardDetailView(크게 보는 uGUI 카드: 키워드 설명·효과 설명), CardPalette
 │  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay
+│  │  ├─ Flow/                  BattleLaunch(장면 이동·난이도/시드 전달), TitleScreen(난이도 선택), ResultPanel(결과 화면)
 │  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
 │  │  ├─ CardMaker/             카드 제작 UI  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
 │  │  ├─ Net/                   ITransport 구현, 세션
 │  │  ├─ UserAssets/            IFilePicker, IUserAssetStore
 │  │  └─ Common/                KoreanFont(OS 한글 폰트), MaterialCache, Shapes(도형·글자), KoreanTerms
-│  ├─ EditorTools/              TCG.EditorTools.asmdef (에디터 전용) — 프로젝트 준비, Battle 장면 생성, 화면 캡처
+│  ├─ EditorTools/              TCG.EditorTools.asmdef (에디터 전용) — 프로젝트 준비, Title·Battle 장면 생성, 화면 캡처
 │  └─ Tests/
 │     ├─ Core/                  TCG.Core.Tests.asmdef (EditMode, Core 참조)
 │     └─ Client/                TCG.Client.Tests.asmdef (PlayMode) — Battle 장면 관전 모드로 연출·화면 일치 검사
@@ -192,6 +193,13 @@ youerface-TCG/Assets/
 - UI 클릭은 `EventSystem` + `InputSystemUIInputModule` (실행 시 생성).
 - 이전 프로젝트의 `TimelineDirector.PlayAsync`와 Binder 패턴(§8)은 Timeline 기반 연출기를 만들 때 새 연출기로 등록해 쓴다.
 - **나중에 연출 공유(GameDesign §7.4)를 위한 전제**: 유저 연출은 코드가 아닌 JSON 프리셋(기본 동작 단계의 순차/동시 조합)이고, 이를 해석하는 **데이터 기반 연출기 하나**를 레지스트리에 등록하는 방식으로 붙인다. 따라서 지금 만드는 기본 연출기들도 가능하면 "기본 동작 단계"(이동·크기·흔들기·페이드·사운드 등, 현재 `Tween`)를 조합하는 형태로 유지해, 나중에 같은 단계를 데이터로 옮기기 쉽게 한다. 연출 ID 자리(`presentation.enter` 등)는 기본 연출 ID 또는 프리셋 해시(`sha256:...`)를 받을 수 있게 둔다.
+
+## 5.2 흐름: 시작 화면 → 대전 → 결과 (M3 5단계)
+
+- 장면 두 개: `Title`(빌드 첫 장면) → `Battle`. 둘 다 `ProjectSetup`(TCG/Setup/Build Title Scene·Build Battle Scene)이 코드로 만들고 빌드 목록 순서(Title, Battle, 나머지)를 맞춘다.
+- `TitleScreen`: 난이도 4개(쉬움·보통·어려움·챌린지) 중 하나 + "대전 시작". 덱은 양쪽 샘플 덱 고정(덱 선택은 나중에), 연출 배속 설정은 넣지 않음(사용자 결정 2026-10-13).
+- `BattleLaunch`(static): 고른 난이도와 새 시드를 들고 Battle 장면을 연다. `BattleBootstrap.Start`가 요청을 한 번 읽어(`TryConsume`) 상대(위쪽) 컴퓨터 난이도·시드로 쓴다. 요청 없이 Battle 장면을 바로 열면(기존 PlayMode 테스트·에디터 Play) 장면에 저장된 설정 그대로.
+- 결과: 대전이 끝나고 연출이 다 끝나면 `BattleBootstrap`이 HUD 위에 `ResultPanel`(승리/패배/무승부, 상대 난이도·턴 수, "다시 하기"=같은 난이도 새 시드로 Battle 다시 열기, "난이도 선택으로"=Title)을 덮는다. 반투명 배경이 아래 클릭을 막는다.
 
 ## 6. 네트워크
 

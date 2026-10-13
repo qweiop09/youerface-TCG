@@ -1,5 +1,6 @@
 using TCG.Client.Board;
 using TCG.Client.Common;
+using TCG.Client.Flow;
 using TCG.Client.Interaction;
 using TCG.Client.Presentation;
 using TCG.Core.AI;
@@ -8,14 +9,13 @@ using TCG.Core.Data;
 using TCG.Core.Rules;
 using TCG.Core.State;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
 
 namespace TCG.Client.Battle
 {
     /// <summary>
     /// Battle 장면 시작점. 샘플 덱으로 대전을 만들고 보드·연출·입력을 붙인다.
     /// 기본은 사람(아래) vs 컴퓨터(위). 관전 모드면 양쪽 다 컴퓨터가 둔다.
+    /// 시작 화면에서 왔으면(<see cref="BattleLaunch"/>) 고른 난이도·시드로 시작하고, 끝나면 결과 화면(<see cref="ResultPanel"/>)을 띄운다.
     /// <see cref="Build"/>는 Play가 아닐 때(에디터 화면 캡처)도 호출할 수 있다 (그때는 상태를 연출 없이 그림).
     /// </summary>
     public sealed class BattleBootstrap : MonoBehaviour
@@ -43,6 +43,9 @@ namespace TCG.Client.Battle
         public BoardView Board { get; private set; }
         public PresentationPlayer Player { get; private set; }
         public DecisionPanel Decisions { get; private set; }
+        /// <summary>대전이 끝나고 연출이 다 끝나면 생긴다.</summary>
+        public ResultPanel Result { get; private set; }
+        public AiDifficulty OpponentDifficulty => _topAi;
         public int CommandsApplied => Session?.CommandsApplied ?? 0;
 
         public bool Spectate
@@ -74,6 +77,11 @@ namespace TCG.Client.Battle
 
         void Start()
         {
+            if (BattleLaunch.TryConsume(out var difficulty, out int seed))
+            {
+                _topAi = difficulty;
+                _seed = seed;
+            }
             Build();
         }
 
@@ -83,6 +91,7 @@ namespace TCG.Client.Battle
                 Shapes.DestroyImmediateOrDeferred(_root.gameObject);
             _root = new GameObject("Battle (generated)").transform;
             _root.SetParent(transform, false);
+            Result = null;
 
             var camera = _camera != null ? _camera : Camera.main;
             var catalog = SampleData.LoadCatalog();
@@ -109,7 +118,7 @@ namespace TCG.Client.Battle
             if (!Application.isPlaying)
                 return;
 
-            EnsureEventSystem();
+            UiFactory.EnsureEventSystem();
             Board.Hud.CreateEndTurnButton(EndTurn);
             _root.gameObject.AddComponent<BattleInput>().Init(Session, Board);
             Decisions = _root.gameObject.AddComponent<DecisionPanel>();
@@ -126,21 +135,15 @@ namespace TCG.Client.Battle
             if (endTurn != null)
                 endTurn.interactable = Session.HumanCanAct && State.Decision == null;
             Board.Hud.SetThinking(Session.AiThinking && !Session.Spectate);
+
+            if (Result == null && !Session.InProgress && !Player.IsPlaying)
+                Result = ResultPanel.Create(Board.Hud.transform, State, Viewer, _topAi);
         }
 
         void EndTurn()
         {
             if (!Session.TrySubmit(new EndTurnCommand(Viewer), out var reason))
                 Board.Hud.ShowHint(reason);
-        }
-
-        static void EnsureEventSystem()
-        {
-            if (EventSystem.current != null)
-                return;
-            var go = new GameObject("EventSystem");
-            go.AddComponent<EventSystem>();
-            go.AddComponent<InputSystemUIInputModule>();
         }
     }
 }

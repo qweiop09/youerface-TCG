@@ -1,6 +1,8 @@
 using System;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace TCG.Client.Common
@@ -131,6 +133,44 @@ namespace TCG.Client.Common
             var text = Text(image.transform, "Value", "", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(diameter, diameter), fontSize);
             text.fontStyle = FontStyles.Bold;
             return text;
+        }
+
+        /// <summary>화면 전체를 덮는 RectTransform (부모 크기에 맞춰 늘어남).</summary>
+        public static RectTransform Stretch(Transform parent, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            return rect;
+        }
+
+        /// <summary>화면 위 전용 캔버스 (기준 해상도 1920x1080).</summary>
+        public static Canvas OverlayCanvas(Transform parent, string name, int sortingOrder = 0)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = sortingOrder;
+            var scaler = go.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.matchWidthOrHeight = 0.5f;
+            go.AddComponent<GraphicRaycaster>();
+            return canvas;
+        }
+
+        /// <summary>UI 클릭용 EventSystem이 없으면 만든다 (Input System 모듈).</summary>
+        public static void EnsureEventSystem()
+        {
+            if (EventSystem.current != null)
+                return;
+            var go = new GameObject("EventSystem");
+            go.AddComponent<EventSystem>();
+            go.AddComponent<InputSystemUIInputModule>();
         }
 
         public static void SetLabel(Button button, string label) =>
