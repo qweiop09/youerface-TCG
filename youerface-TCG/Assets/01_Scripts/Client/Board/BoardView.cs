@@ -34,6 +34,8 @@ namespace TCG.Client.Board
 
         public Camera Camera { get; private set; }
         public HudView Hud { get; private set; }
+        /// <summary>카드 등장·퇴장 사운드 (없으면 소리 없음).</summary>
+        public TCG.Client.UserAssets.CardSoundPlayer Sounds { get; set; }
         public Transform EffectRoot { get; private set; }
         public int Viewer { get; private set; }
         /// <summary>마지막 <see cref="SyncTo"/>에서 화면 표시와 실제 상태가 달랐던 수 (연출 검증용).</summary>

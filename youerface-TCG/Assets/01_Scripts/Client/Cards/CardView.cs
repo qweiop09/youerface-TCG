@@ -1,5 +1,6 @@
 using System.Text;
 using TCG.Client.Common;
+using TCG.Client.UserAssets;
 using TCG.Core.Data;
 using TCG.Core.State;
 using TMPro;
@@ -73,10 +74,14 @@ namespace TCG.Client.Cards
             _faceRoot.transform.SetParent(transform, false);
             var face = _faceRoot.transform;
 
-            // 그림 자리: 아직 카드 이미지가 없으므로 종류 이름을 크게 적는다.
+            // 그림 자리: 유저 그림이 있으면 그림, 없으면 종류 이름을 크게 적는다.
             Shapes.Box(face, "Art", new Vector3(0, Top, 0.22f), new Vector3(0.86f, 0.002f, 0.72f), CardPalette.Art(type));
-            Shapes.Label(face, "TypeLabel", KoreanTerms.Of(type), new Vector3(0, Top + 0.004f, 0.22f), 2.4f,
-                new Color(1f, 1f, 1f, 0.55f), 0.8f, 0.4f);
+            var art = UserAssetService.Cache.Texture(_definition.Art?.Image);
+            if (art != null)
+                Shapes.Picture(face, "ArtImage", new Vector3(0, Top + 0.003f, 0.22f), 0.86f, 0.72f, art);
+            else
+                Shapes.Label(face, "TypeLabel", KoreanTerms.Of(type), new Vector3(0, Top + 0.004f, 0.22f), 2.4f,
+                    new Color(1f, 1f, 1f, 0.55f), 0.8f, 0.4f);
 
             Shapes.Box(face, "Banner", new Vector3(0, Top, -0.24f), new Vector3(0.94f, 0.002f, 0.2f), CardPalette.Banner);
             Shapes.Label(face, "Name", _definition.Name ?? "", new Vector3(0, Top + 0.004f, -0.24f), 1.6f, CardPalette.Text, 0.9f, 0.2f, ellipsis: true);

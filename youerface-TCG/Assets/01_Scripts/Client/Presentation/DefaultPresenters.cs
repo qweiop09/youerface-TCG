@@ -151,6 +151,7 @@ namespace TCG.Client.Presentation
                 view.transform.localScale = Vector3.one * 0.01f;
             }
 
+            c.Board.Sounds?.PlayEnter(view.Definition);
             c.Board.InsertInZone(view, e.Zone, e.Index);
             c.Board.TargetPose(view, out var pos, out var rot);
             if (created)
@@ -169,6 +170,7 @@ namespace TCG.Client.Presentation
             var view = c.Board.Card(e.EntityId);
             if (view == null)
                 yield break;
+            c.Board.Sounds?.PlayEnter(view.Definition);
             yield return Tween.Wait(0.25f);
             // 효과가 처리되는 동안 옆으로 비켜 작게 띄워 둔다 (발동 빛이 이 카드에 보이도록).
             c.Board.ShowcasePose(out var pos, out var rot, -3.2f);
@@ -312,6 +314,7 @@ namespace TCG.Client.Presentation
             var view = c.Board.Card(e.EntityId);
             if (view == null)
                 yield break;
+            c.Board.Sounds?.PlayExit(view.Definition);
             c.Board.Detach(view);
             view.SetGlow(null);
             int owner = view.OwnerIndex;

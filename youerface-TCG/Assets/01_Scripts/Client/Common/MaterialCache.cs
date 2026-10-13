@@ -27,6 +27,22 @@ namespace TCG.Client.Common
             return material;
         }
 
+        static readonly Dictionary<Texture, Material> TextureCache = new Dictionary<Texture, Material>();
+
+        /// <summary>그림(텍스처)을 그대로 보여 주는 조명 없는 머티리얼 (유저 카드 그림).</summary>
+        public static Material Textured(Texture texture)
+        {
+            if (TextureCache.TryGetValue(texture, out var cached) && cached != null)
+                return cached;
+            var material = new Material(Unlit()) { color = Color.white, mainTexture = texture, name = "Art " + texture.name };
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", Color.white);
+            if (material.HasProperty("_BaseMap"))
+                material.SetTexture("_BaseMap", texture);
+            TextureCache[texture] = material;
+            return material;
+        }
+
         static Material Lit() => _lit != null ? _lit : (_lit = Load("Materials/BaseLit", "Universal Render Pipeline/Lit"));
         static Material Unlit() => _unlit != null ? _unlit : (_unlit = Load("Materials/BaseUnlit", "Universal Render Pipeline/Unlit"));
 

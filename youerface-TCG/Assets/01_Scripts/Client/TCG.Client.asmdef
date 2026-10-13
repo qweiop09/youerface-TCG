@@ -5,7 +5,8 @@
         "TCG.Core",
         "Unity.TextMeshPro",
         "Unity.InputSystem",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "StandaloneFileBrowser"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

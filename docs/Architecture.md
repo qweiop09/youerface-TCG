@@ -22,7 +22,7 @@ Unity 프로젝트 루트는 `youerface-TCG/` 하위 폴더다.
 
 ```
 youerface-TCG/Assets/
-├─ 00_Scenes/                   Title.unity (빌드 첫 장면, 시작 화면) → Battle.unity
+├─ 00_Scenes/                   Title.unity (빌드 첫 장면, 시작 화면) → Battle.unity, CardMaker.unity
 ├─ 01_Scripts/
 │  ├─ Core/                     TCG.Core.asmdef      (noEngineReferences: true)
 │  │  ├─ Data/                  CardDefinition, EffectDefinition, RuleConfig, 열거형
@@ -42,10 +42,10 @@ youerface-TCG/Assets/
 │  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay
 │  │  ├─ Flow/                  BattleLaunch(장면 이동·난이도/시드 전달), TitleScreen(난이도 선택), ResultPanel(결과 화면)
 │  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
-│  │  ├─ CardMaker/             카드 제작 UI  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
+│  │  ├─ CardMaker/             CardMakerScreen(카드 제작 화면), FormColumn(편집 줄 쌓기), LocalCardLibrary(내 카드 JSON)  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
 │  │  ├─ Net/                   ITransport 구현, 세션
-│  │  ├─ UserAssets/            IFilePicker, IUserAssetStore
+│  │  ├─ UserAssets/            IFilePicker(StandaloneFilePicker), IUserAssetStore(LocalUserAssetStore), UserAssetImporter, UserAssetCache, ArtCropDialog, CardSoundPlayer, UserAssetService
 │  │  └─ Common/                KoreanFont(OS 한글 폰트), MaterialCache, Shapes(도형·글자), KoreanTerms
 │  ├─ EditorTools/              TCG.EditorTools.asmdef (에디터 전용) — 프로젝트 준비, Title·Battle 장면 생성, 화면 캡처
 │  └─ Tests/
@@ -215,13 +215,25 @@ youerface-TCG/Assets/
 - 대전 시작 핸드셰이크: 앱/스키마/점수표 버전 확인 → 덱 교환 및 `ScoreCalculator`로 방 규칙 검증 → 없는 에셋(해시 기준) 전송 → 시작.
 - 나중에 전용 서버가 필요하면 Core를 그대로 서버에 올린다.
 
-## 7. 유저 에셋 (이미지·사운드)
+## 7. 유저 에셋 (이미지·사운드) — M4-2
 
-- `IFilePicker`: 데스크톱은 StandaloneFileBrowser 등, 모바일은 NativeFilePicker 등. 플랫폼별 구현 교체.
-- `IUserAssetStore`: 파일을 SHA-256 해시로 `Application.persistentDataPath` 아래에 저장·조회. 카드 JSON은 해시만 참조.
-- 런타임 로드: 이미지 → `Texture2D.LoadImage` 또는 `UnityWebRequestTexture`, 사운드 → `UnityWebRequestMultimedia.GetAudioClip` (OGG/WAV 권장).
-- 가져올 때: 이미지는 크기 제한 없이 받아 유저가 정한 영역(위치·확대)만 카드 그림 비율로 잘라 긴 변 512px로 다시 인코딩해 저장, 사운드는 OGG/WAV 5초 이하만 (GameDesign §9). 파일 선택은 OS 기본 창.
+- Core(`Core/Data`): `AssetLimits`(그림 512x427·6:5, 최대 확대 400%, JPG 품질 90, 사운드 5000ms, 확장자 목록), `AssetHash`("sha256:소문자hex"), `ArtCrop.Compute`(SNS식 영역 계산, 정수), `CardAssetRefs.Collect`(카드·포함 소환물의 에셋 해시, 대전 시 전송용).
+- `IFilePicker` → `StandaloneFilePicker`: OS 기본 창. 패키지 `Packages/io.github.gkngkc.unity-standalone-file-browser`(OpenUPM 1.3.4, MIT, 맥 universal 바이너리)를 임베디드로 넣음. 원본 gkngkc 1.2는 맥 x86_64 전용이라 Apple Silicon에서 안 됨. 네이티브 실패 시 에디터는 `EditorUtility.OpenFilePanelWithFilters`로 대신. 모바일은 나중에(M7) 구현 교체.
+- `IUserAssetStore` → `LocalUserAssetStore`: `persistentDataPath/UserAssets/<hex>.<확장자>`. 같은 내용은 다시 쓰지 않음(임시 파일 → 이동).
+- `UserAssetImporter`: 이미지 `LoadSourceImage`(PNG·JPG, 크기 제한 없음, GPU 최대 텍스처 크기만) → `ArtCropDialog`(끌기·휠·+/−, 창에 보이는 그대로 저장) → `SaveArt`(Blit으로 잘라 줄이고 JPG). 사운드 `ImportSound`(OGG·WAV, `UnityWebRequestMultimedia`로 읽어 길이 검사, 원본 바이트 저장).
+- `UserAssetCache`: 해시 → Texture2D(동기) / AudioClip(코루틴으로 미리 읽음). `UserAssetService`가 저장소·캐시·가져오기·파일 창을 하나씩 들고 있음.
+- 대전 적용: `CardView`(그림 판 Quad, 위쪽 +Z), `CardDetailView`(그림 칸에 6:5 RawImage), `CardSoundPlayer`(BattleBootstrap이 덱 사운드를 미리 읽음, `CardEntered`·`SpellCast`에서 등장음, `CardExited`에서 퇴장음). 그림·사운드가 없거나 저장소에 없으면 기존 표시·무음.
 - 나중에 서버 업로드를 붙여도 해시 참조 구조를 그대로 쓴다.
+
+## 7.1 카드 제작기 (M4-3·M4-4)
+
+- 장면 `CardMaker.unity`(에디터 메뉴 TCG/Setup/Build CardMaker Scene), 시작 화면 오른쪽 아래 "카드 제작" 버튼으로 들어감.
+- `CardMakerScreen`: 왼쪽(기본 정보·키워드·그림·사운드) / 가운데(`CardDetailView` 미리보기, 점수, 규칙 검사 결과) / 오른쪽(효과 블록: 트리거·발동·조건·행동·대상·수치). 값이 바뀌면 양쪽 편집 칸을 다시 쌓는다(이름 입력은 미리보기만 갱신해 입력 칸이 유지됨).
+- 고르기 조작은 ◀ 값 ▶(목록 순환), 숫자는 − 값 +, 키워드는 칩. 선택지는 전부 보여 주고 규칙 위반은 `CardValidator` 결과로 가운데에 표시(제작 중엔 저장 가능, 덱에 넣을 때 다시 검사).
+- 소환물: 행동을 "소환물 생성"으로 고르면 기본 소환물이 생기고 "편집 →"으로 들어감. 위쪽 경로(카드 › 소환물)와 "돌아가기"로 나옴. 점수는 항상 최상위 카드 기준(소환물 점수 합산).
+- 편집 규칙 도우미는 Core `CardEditing`(새 카드·효과 기본값, 종류·행동·대상·조건을 바꿀 때 맞지 않는 값 정리, JSON 왕복 복사). 편집기 입력 범위(스탯 0~20 등)는 규칙값이 아니라 화면 상수.
+- 점수 표시: 실제 값(음수 가능), 표시 점수와 다르면 "(카드 표시 n)"도. 항목별 내역(기본·스탯·코스트·키워드 합·효과 합·패널티 상한).
+- 저장: `LocalCardLibrary` → `persistentDataPath/Cards/<카드 ID>.json`(카드 JSON 그대로, 임시 파일→이동). 카드 ID는 Client가 `c_` + 12자리 16진수로 만든다(Core 로직 아님). "내 카드" 창에서 열기·삭제(두 번 눌러 확인), "복제"는 새 ID로 열기(저장은 따로), 바뀐 게 있으면 경로 옆에 "저장 안 됨".
 
 ## 8. 이전 프로젝트(ProjectNeoulgyeol) 차용 목록
 

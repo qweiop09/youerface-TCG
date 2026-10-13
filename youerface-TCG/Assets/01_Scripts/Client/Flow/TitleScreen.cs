@@ -21,6 +21,7 @@ namespace TCG.Client.Flow
 
         public AiDifficulty Selected { get; private set; }
         public Button StartButton { get; private set; }
+        public Button CardMakerButton { get; private set; }
         public Button OptionButton(AiDifficulty difficulty) => _options[difficulty];
 
         void Start()
@@ -51,6 +52,9 @@ namespace TCG.Client.Flow
                 .color = new Color(0.7f, 0.72f, 0.78f);
             StartButton = UiFactory.Button(root, "Start", "대전 시작", new Vector2(0.5f, 0f), new Vector2(0, 190), new Vector2(360, 100),
                 new Color(0.75f, 0.55f, 0.2f), StartBattle, 40f);
+
+            CardMakerButton = UiFactory.Button(root, "CardMaker", "카드 제작", new Vector2(1f, 0f), new Vector2(-200, 80), new Vector2(300, 80),
+                new Color(0.3f, 0.45f, 0.55f), () => UnityEngine.SceneManagement.SceneManager.LoadScene("CardMaker"), 32f);
 
             Select(BattleLaunch.Difficulty);
         }

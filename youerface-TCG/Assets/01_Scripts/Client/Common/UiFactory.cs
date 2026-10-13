@@ -173,6 +173,37 @@ namespace TCG.Client.Common
             go.AddComponent<InputSystemUIInputModule>();
         }
 
+        /// <summary>한 줄 글 입력 칸 (TMP_InputField).</summary>
+        public static TMP_InputField InputField(Transform parent, string name, Vector2 anchor, Vector2 position, Vector2 size, float fontSize)
+        {
+            var image = Panel(parent, name, anchor, position, size, new Color(0.1f, 0.11f, 0.14f));
+            var area = Stretch(image.transform, "Text Area");
+            area.offsetMin = new Vector2(14f, 4f);
+            area.offsetMax = new Vector2(-14f, -4f);
+            area.gameObject.AddComponent<RectMask2D>();
+
+            var placeholder = Text(area, "Placeholder", "입력", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, fontSize, TextAlignmentOptions.Left);
+            placeholder.color = new Color(1f, 1f, 1f, 0.3f);
+            var text = Text(area, "Text", "", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, fontSize, TextAlignmentOptions.Left);
+            foreach (var t in new[] { placeholder, text })
+            {
+                t.rectTransform.anchorMin = Vector2.zero;
+                t.rectTransform.anchorMax = Vector2.one;
+                t.rectTransform.sizeDelta = Vector2.zero;
+                t.textWrappingMode = TextWrappingModes.NoWrap;
+            }
+
+            var field = image.gameObject.AddComponent<TMP_InputField>();
+            field.textViewport = area;
+            field.textComponent = text;
+            field.placeholder = placeholder;
+            field.fontAsset = KoreanFont.Get();
+            field.pointSize = fontSize;
+            field.caretColor = Color.white;
+            field.customCaretColor = true;
+            return field;
+        }
+
         public static void SetLabel(Button button, string label) =>
             button.GetComponentInChildren<TextMeshProUGUI>().text = label;
     }

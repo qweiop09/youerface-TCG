@@ -57,5 +57,77 @@ namespace TCG.Client.Common
                 default: return "";
             }
         }
+
+        public static string Of(TargetType type)
+        {
+            switch (type)
+            {
+                case TargetType.Self: return "자신";
+                case TargetType.FriendlyHero: return "내 영웅";
+                case TargetType.EnemyHero: return "상대 영웅";
+                case TargetType.RandomEnemyMinion: return "무작위 적 기물";
+                case TargetType.AllEnemyMinions: return "모든 적 기물";
+                case TargetType.AllFriendlyMinions: return "모든 아군 기물";
+                case TargetType.Chosen: return "선택 대상";
+                default: return type.ToString();
+            }
+        }
+
+        public static string Of(ActionType type)
+        {
+            switch (type)
+            {
+                case ActionType.Damage: return "피해";
+                case ActionType.Heal: return "회복";
+                case ActionType.Draw: return "드로우";
+                case ActionType.Discard: return "버리기";
+                case ActionType.ModifyAttack: return "공격력 증감";
+                case ActionType.ModifyHealth: return "체력 증감";
+                case ActionType.Destroy: return "파괴";
+                case ActionType.CreateSummon: return "소환물 생성";
+                case ActionType.ModifyUsage: return "사용 횟수 증감";
+                case ActionType.ModifyCost: return "코스트 증감";
+                default: return type.ToString();
+            }
+        }
+
+        public static string Of(ConditionType type)
+        {
+            switch (type)
+            {
+                case ConditionType.HealthAtMost: return "체력 n 이하";
+                case ConditionType.FriendlyMinionCountAtLeast: return "내 기물 n개 이상";
+                case ConditionType.HandCountAtMost: return "손패 n장 이하";
+                case ConditionType.CardTypeExists: return "특정 종류 카드 존재";
+                default: return type.ToString();
+            }
+        }
+
+        public static string Of(SummonDuplicateMode mode)
+        {
+            switch (mode)
+            {
+                case SummonDuplicateMode.AddNew: return "하나 더 놓기";
+                case SummonDuplicateMode.RefreshUsage: return "사용 횟수 갱신";
+                default: return mode.ToString();
+            }
+        }
+
+        public static string Of(EffectActivation activation) => activation == EffectActivation.Optional ? "선택 발동" : "강제 발동";
+
+        public static string Of(TCG.Core.Scoring.ScoreLineKind kind)
+        {
+            switch (kind)
+            {
+                case TCG.Core.Scoring.ScoreLineKind.Base: return "기본";
+                case TCG.Core.Scoring.ScoreLineKind.Attack: return "공격력";
+                case TCG.Core.Scoring.ScoreLineKind.Health: return "체력";
+                case TCG.Core.Scoring.ScoreLineKind.Cost: return "코스트";
+                case TCG.Core.Scoring.ScoreLineKind.Keyword: return "키워드";
+                case TCG.Core.Scoring.ScoreLineKind.Effect: return "효과";
+                case TCG.Core.Scoring.ScoreLineKind.PenaltyCap: return "패널티 상한";
+                default: return kind.ToString();
+            }
+        }
     }
 }

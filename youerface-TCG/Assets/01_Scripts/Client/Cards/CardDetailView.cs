@@ -1,5 +1,6 @@
 using System.Text;
 using TCG.Client.Common;
+using TCG.Client.UserAssets;
 using TCG.Core.Data;
 using TCG.Core.State;
 using TMPro;
@@ -18,6 +19,7 @@ namespace TCG.Client.Cards
         public const float Height = 600f;
 
         Image _frame, _art;
+        RawImage _artImage;
         TextMeshProUGUI _name, _type, _cost, _attack, _health, _usage, _body;
         GameObject _attackBadge, _healthBadge, _usageBadge, _costBadge;
 
@@ -38,6 +40,12 @@ namespace TCG.Client.Cards
             _art = UiFactory.Panel(t, "Art", new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(Width - 40, 210), Color.white);
             _type = UiFactory.Text(_art.transform, "Type", "", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(Width - 40, 210), 64);
             _type.color = new Color(1, 1, 1, 0.55f);
+            // 유저 그림: 그림 칸 높이에 맞춰 카드 그림 비율 그대로 가운데에.
+            var limits = UserAssetService.Limits;
+            _artImage = UiFactory.Rect(_art.transform, "ArtImage", new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(210f * limits.ArtWidth / limits.ArtHeight, 210)).gameObject.AddComponent<RawImage>();
+            _artImage.raycastTarget = false;
+            _artImage.gameObject.SetActive(false);
 
             UiFactory.Panel(t, "NameBanner", new Vector2(0.5f, 1f), new Vector2(0, -290), new Vector2(Width - 24, 56), CardPalette.Banner);
             _name = UiFactory.Text(t, "Name", "", new Vector2(0.5f, 1f), new Vector2(0, -290), new Vector2(Width - 40, 56), 34);
@@ -66,6 +74,10 @@ namespace TCG.Client.Cards
             _frame.color = CardPalette.Body(def.Type);
             _art.color = CardPalette.Art(def.Type);
             _type.text = KoreanTerms.Of(def.Type);
+            var art = UserAssetService.Cache.Texture(def.Art?.Image);
+            _artImage.texture = art;
+            _artImage.gameObject.SetActive(art != null);
+            _type.gameObject.SetActive(art == null);
             _name.text = def.Name ?? "";
 
             _costBadge.SetActive(def.Type != CardType.Summon);

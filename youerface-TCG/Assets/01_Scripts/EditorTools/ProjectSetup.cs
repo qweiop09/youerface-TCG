@@ -19,6 +19,7 @@ namespace TCG.EditorTools
     {
         public const string TitleScenePath = "Assets/00_Scenes/Title.unity";
         public const string BattleScenePath = "Assets/00_Scenes/Battle.unity";
+        public const string CardMakerScenePath = "Assets/00_Scenes/CardMaker.unity";
         const string MaterialsFolder = "Assets/03_Datas/Resources/Materials";
 
         [MenuItem("TCG/Setup/All")]
@@ -28,6 +29,7 @@ namespace TCG.EditorTools
             CreateBaseMaterials();
             BuildBattleScene();
             BuildTitleScene();
+            BuildCardMakerScene();
         }
 
         /// <summary>
@@ -138,10 +140,30 @@ namespace TCG.EditorTools
             Debug.Log($"[Setup] Built {TitleScenePath}");
         }
 
-        /// <summary>빌드 목록: Title(첫 장면) → Battle → 나머지. 아직 없는 장면은 건너뛴다.</summary>
+        /// <summary>CardMaker 장면(카드 제작): 카메라 + CardMakerScreen.</summary>
+        [MenuItem("TCG/Setup/Build CardMaker Scene")]
+        public static void BuildCardMakerScene()
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var cameraGo = new GameObject("Main Camera") { tag = "MainCamera" };
+            var camera = cameraGo.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.06f, 0.07f, 0.09f);
+            cameraGo.AddComponent<UniversalAdditionalCameraData>();
+            cameraGo.AddComponent<AudioListener>();
+
+            new GameObject("CardMaker").AddComponent<TCG.Client.CardMaker.CardMakerScreen>();
+
+            EditorSceneManager.SaveScene(scene, CardMakerScenePath);
+            RegisterScenes();
+            Debug.Log($"[Setup] Built {CardMakerScenePath}");
+        }
+
+        /// <summary>빌드 목록: Title(첫 장면) → Battle → CardMaker → 나머지. 아직 없는 장면은 건너뛴다.</summary>
         static void RegisterScenes()
         {
-            var first = new[] { TitleScenePath, BattleScenePath }.Where(File.Exists).ToList();
+            var first = new[] { TitleScenePath, BattleScenePath, CardMakerScenePath }.Where(File.Exists).ToList();
             var scenes = first.Select(path => new EditorBuildSettingsScene(path, true)).ToList();
             scenes.AddRange(EditorBuildSettings.scenes.Where(s => !first.Contains(s.path)));
             EditorBuildSettings.scenes = scenes.ToArray();

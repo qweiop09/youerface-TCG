@@ -14,6 +14,24 @@ namespace TCG.Client.Common
             return go;
         }
 
+        /// <summary>위(+Y)를 향한 그림 판. 그림의 위쪽이 +Z.</summary>
+        public static GameObject Picture(Transform parent, string name, Vector3 localPos, float width, float height, Texture texture)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            go.transform.localScale = new Vector3(width, height, 1f);
+            var collider = go.GetComponent<Collider>();
+            if (collider != null)
+                DestroyImmediateOrDeferred(collider);
+            var renderer = go.GetComponent<Renderer>();
+            renderer.sharedMaterial = MaterialCache.Textured(texture);
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return go;
+        }
+
         /// <summary>납작한 원판 (지름 diameter, 두께 height).</summary>
         public static GameObject Disc(Transform parent, string name, Vector3 localPos, float diameter, float height, Color color, bool unlit = false)
         {

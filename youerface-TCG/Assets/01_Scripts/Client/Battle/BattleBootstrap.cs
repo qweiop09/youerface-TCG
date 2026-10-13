@@ -3,6 +3,7 @@ using TCG.Client.Common;
 using TCG.Client.Flow;
 using TCG.Client.Interaction;
 using TCG.Client.Presentation;
+using TCG.Client.UserAssets;
 using TCG.Core.AI;
 using TCG.Core.Commands;
 using TCG.Core.Data;
@@ -100,7 +101,9 @@ namespace TCG.Client.Battle
             var engine = new GameEngine();
             var ai = new[] { AiPlayers.Create(_bottomAi, _seed, engine), AiPlayers.Create(_topAi, _seed + 1, engine) };
             var state = new GameState(RuleConfig.CreateDefault(), _seed);
-            engine.StartGame(state, catalog.Resolve(decks[0]), catalog.Resolve(decks[1 % decks.Count]));
+            var deck0 = catalog.Resolve(decks[0]);
+            var deck1 = catalog.Resolve(decks[1 % decks.Count]);
+            engine.StartGame(state, deck0, deck1);
             for (int i = 0; i < _previewSteps && state.Phase == GamePhase.InProgress; i++)
             {
                 int mover = state.Decision?.PlayerIndex ?? state.ActivePlayerIndex;
@@ -108,6 +111,9 @@ namespace TCG.Client.Battle
             }
 
             Board = BoardView.Create(_root, camera, Viewer);
+            Board.Sounds = _root.gameObject.AddComponent<CardSoundPlayer>();
+            Board.Sounds.Preload(deck0);
+            Board.Sounds.Preload(deck1);
             Board.Render(state);
             Player = _root.gameObject.AddComponent<PresentationPlayer>();
             Player.Init(Board);
