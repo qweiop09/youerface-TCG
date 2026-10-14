@@ -20,7 +20,7 @@ namespace TCG.Client.Board
 
         TextMeshProUGUI _turn, _mine, _theirs, _banner, _hint;
         UnityEngine.UI.Button _endTurn;
-        TextMeshProUGUI _thinking;
+        TextMeshProUGUI _thinking, _online;
         int _hintVersion;
         readonly Line[] _lines = { new Line { Who = "나" }, new Line { Who = "상대" } };
         int _bannerVersion;
@@ -54,6 +54,9 @@ namespace TCG.Client.Board
             view._thinking = Text(go.transform, "Thinking", new Vector2(0.5f, 1f), new Vector2(0, -70), 24, TextAlignmentOptions.Top);
             view._thinking.color = new Color(1f, 0.75f, 0.5f, 0.9f);
             view._thinking.text = "";
+            view._online = Text(go.transform, "Online", new Vector2(0.5f, 1f), new Vector2(0, -66), 26, TextAlignmentOptions.Top);
+            view._online.rectTransform.sizeDelta = new Vector2(1200, 80);
+            view._online.text = "";
             view.BigCard = BigCardOverlay.Create(go.transform);
             view.Inspect = CardInspectOverlay.Create(go.transform);
             return view;
@@ -85,6 +88,13 @@ namespace TCG.Client.Board
         /// <summary>컴퓨터가 다음 행동을 고르는 동안 "상대가 생각 중…" 표시.</summary>
         public void SetThinking(bool thinking) => _thinking.text = thinking ? "상대가 생각 중…" : "";
         public string HintText => _hint.text;
+        /// <summary>온라인 대전: 남은 시간·연결 상태 줄.</summary>
+        public void SetOnline(string text, Color color)
+        {
+            _online.text = text ?? "";
+            _online.color = color;
+        }
+        public string OnlineText => _online.text;
         public UnityEngine.UI.Button EndTurnButton => _endTurn;
 
         /// <summary>오른쪽 가운데에 "턴 종료" 버튼을 만든다.</summary>

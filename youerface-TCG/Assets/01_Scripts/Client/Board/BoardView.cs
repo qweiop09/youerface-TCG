@@ -173,6 +173,17 @@ namespace TCG.Client.Board
             return view;
         }
 
+        /// <summary>가려진 채 그려진 카드 중 state에서 정체가 보이는 것을 앞면으로 다시 만든다 (온라인 시야).</summary>
+        public void RevealFrom(GameState state)
+        {
+            foreach (var view in _cards.Values)
+            {
+                var entity = state.GetEntity(view.EntityId);
+                if (entity != null)
+                    view.Reveal(entity);
+            }
+        }
+
         /// <summary>목록에서만 뺀다 (화면에는 남음 — 연출이 끝나면 직접 지운다).</summary>
         public void Detach(CardView view)
         {

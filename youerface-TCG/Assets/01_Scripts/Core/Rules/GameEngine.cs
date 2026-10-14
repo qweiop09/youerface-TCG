@@ -37,14 +37,16 @@ namespace TCG.Core.Rules
 
             var ctx = new RuleContext(state, Registry);
             var decks = new[] { deck0 ?? Array.Empty<CardDefinition>(), deck1 ?? Array.Empty<CardDefinition>() };
+            // 섞은 순서대로 카드를 만든다: 카드 ID가 덱 목록 순서를 드러내지 않게 (온라인 시야 필터, Architecture §6).
+            // 섞기 결과(덱 순서)와 난수 사용량은 "만든 뒤 섞기"와 같다.
             for (int p = 0; p < GameState.PlayerCount; p++)
             {
+                var order = new List<CardDefinition>(decks[p]);
+                state.Rng.Shuffle(order);
                 var deck = state.GetPlayer(p).Deck;
-                for (int i = 0; i < decks[p].Count; i++)
-                    deck.TryAdd(state.CreateEntity(p, decks[p][i]));
+                for (int i = 0; i < order.Count; i++)
+                    deck.TryAdd(state.CreateEntity(p, order[i]));
             }
-            for (int p = 0; p < GameState.PlayerCount; p++)
-                state.GetPlayer(p).Deck.Shuffle(state.Rng);
 
             int first = state.Rng.Next(GameState.PlayerCount);
             int second = 1 - first;
@@ -82,6 +84,11 @@ namespace TCG.Core.Rules
                 return ValidationResult.Fail("잘못된 요청입니다.");
             if (state.Phase != GamePhase.InProgress)
                 return ValidationResult.Fail("대전이 진행 중이 아닙니다.");
+
+            if (command is ConcedeCommand)
+                return command.PlayerIndex >= 0 && command.PlayerIndex < GameState.PlayerCount
+                    ? ValidationResult.Ok
+                    : ValidationResult.Fail("잘못된 플레이어입니다.");
 
             if (state.Decision != null)
                 return ValidateDecision(state, command);
@@ -253,6 +260,11 @@ namespace TCG.Core.Rules
                 throw new InvalidOperationException(validation.Reason);
 
             var ctx = new RuleContext(state, Registry);
+            if (command is ConcedeCommand)
+            {
+                ctx.Concede(command.PlayerIndex);
+                return ctx.Events;
+            }
             switch (command)
             {
                 case PlayCardCommand play:

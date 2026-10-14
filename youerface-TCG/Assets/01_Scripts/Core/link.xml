@@ -1,0 +1,4 @@
+<!-- 온라인 메시지·이벤트는 리플렉션으로 읽고 쓴다(EventCodec, NetCodec). IL2CPP 코드 줄이기에서 지워지지 않게 Core 전체를 보존. -->
+<linker>
+  <assembly fullname="TCG.Core" preserve="all"/>
+</linker>

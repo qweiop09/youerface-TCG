@@ -64,6 +64,7 @@ namespace TCG.Client.Presentation
 
         IEnumerator PlayBatch(Batch batch)
         {
+            _board.RevealFrom(batch.Before);
             var context = new PresentationContext(_board, batch.Before, batch.After, _effects, this);
             var events = batch.Events;
             var hitMode = HitPresentationMode.Simultaneous;

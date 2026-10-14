@@ -14,6 +14,8 @@ namespace TCG.Core.Data
         MissingCard,
         /// <summary><see cref="CardValidator"/> 검사 실패.</summary>
         InvalidCard,
+        /// <summary>방 규칙의 카드 점수 상한을 넘음 (<see cref="RoomRules"/>).</summary>
+        OverScoreLimit,
     }
 
     public readonly struct DeckIssue

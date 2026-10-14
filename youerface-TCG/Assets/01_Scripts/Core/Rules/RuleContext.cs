@@ -734,5 +734,22 @@ namespace TCG.Core.Rules
             State.WinnerIndex = dead0 && dead1 ? (int?)null : (dead0 ? 1 : 0);
             Emit(new GameEndedEvent(State.WinnerIndex));
         }
+
+        /// <summary>항복: 진행 중인 체인·선택을 버리고 상대 승리로 끝낸다.</summary>
+        public void Concede(int playerIndex)
+        {
+            if (State.Phase != GamePhase.InProgress)
+                return;
+            State.Decision = null;
+            State.Chain.Clear();
+            State.ChainClosed = false;
+            State.PendingTriggers.Clear();
+            State.PendingActions.Clear();
+            State.PriorityPlayer = -1;
+            State.PriorityPasses = 0;
+            State.Phase = GamePhase.Finished;
+            State.WinnerIndex = 1 - playerIndex;
+            Emit(new GameEndedEvent(State.WinnerIndex));
+        }
     }
 }

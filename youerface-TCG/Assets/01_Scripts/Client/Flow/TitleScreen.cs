@@ -42,6 +42,7 @@ namespace TCG.Client.Flow
         public Button StartButton { get; private set; }
         public Button CardMakerButton { get; private set; }
         public Button DeckBuilderButton { get; private set; }
+        public Button OnlineButton { get; private set; }
         public IReadOnlyList<DeckOption> DeckOptions => _decks;
         public DeckOption SelectedDeck { get; private set; }
         /// <summary>규칙 검사에 걸려 선택지에서 뺀 내 덱 수.</summary>
@@ -82,6 +83,8 @@ namespace TCG.Client.Flow
 
             CardMakerButton = UiFactory.Button(root, "CardMaker", "카드 제작", new Vector2(1f, 0f), new Vector2(-200, 80), new Vector2(300, 80),
                 new Color(0.3f, 0.45f, 0.55f), () => UnityEngine.SceneManagement.SceneManager.LoadScene("CardMaker"), 32f);
+            OnlineButton = UiFactory.Button(root, "Online", "온라인 대전", new Vector2(1f, 0f), new Vector2(-840, 80), new Vector2(300, 80),
+                new Color(0.3f, 0.5f, 0.4f), () => UnityEngine.SceneManagement.SceneManager.LoadScene(TCG.Client.Online.OnlineScreen.SceneName), 32f);
             DeckBuilderButton = UiFactory.Button(root, "DeckBuilder", "덱 편집", new Vector2(1f, 0f), new Vector2(-520, 80), new Vector2(300, 80),
                 new Color(0.3f, 0.45f, 0.55f), () => UnityEngine.SceneManagement.SceneManager.LoadScene(DeckBuilderScreen.SceneName), 32f);
 

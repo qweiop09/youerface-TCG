@@ -52,6 +52,17 @@ namespace TCG.Core.State
             return true;
         }
 
+        /// <summary>같은 자리에 다른 카드 객체를 끼운다 (시야 상태에서 가려진 카드를 공개할 때).</summary>
+        internal void Replace(Entity old, Entity replacement)
+        {
+            int index = _entities.IndexOf(old);
+            if (index < 0)
+                return;
+            _entities[index] = replacement;
+            old.Location = null;
+            replacement.Location = Type;
+        }
+
         public bool Remove(Entity entity)
         {
             if (!_entities.Remove(entity))

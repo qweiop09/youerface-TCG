@@ -21,6 +21,9 @@ namespace TCG.Core.Data
         public List<string> ImageExtensions { get; set; } = new List<string> { "png", "jpg", "jpeg" };
         public List<string> SoundExtensions { get; set; } = new List<string> { "ogg", "wav" };
 
+        /// <summary>대전 시작 때 상대에게서 받는 에셋 1개의 최대 크기(바이트). 기술 제한(규칙 아님).</summary>
+        public int MaxTransferBytes { get; set; } = 4 * 1024 * 1024;
+
         public static AssetLimits CreateDefault() => new AssetLimits();
     }
 }

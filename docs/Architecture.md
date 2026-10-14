@@ -34,6 +34,7 @@ youerface-TCG/Assets/
 │  │  ├─ Scoring/               ScoreCalculator (static), ScoreTable
 │  │  ├─ Random/                DeterministicRng
 │  │  ├─ AI/                    컴퓨터 플레이어 (EasyAi, SearchAi), 시야 제한(AiView), 가능한 명령 목록, 판세 평가
+│  │  ├─ Net/                   온라인(M6): 시야 필터, 상태 스냅샷, 메시지, ITransport·루프백, HostMatch, OnlineHost/OnlineGuest
 │  │  └─ Serialization/         JSON 직렬화
 │  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
 │  │  ├─ Battle/                BattleBootstrap(장면 시작점), BattleSession(명령 검증·적용·연출 등록·컴퓨터 차례), SampleData
@@ -44,7 +45,7 @@ youerface-TCG/Assets/
 │  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
 │  │  ├─ CardMaker/             CardMakerScreen(카드 제작 화면), FormColumn(편집 줄 쌓기), LocalCardLibrary(내 카드 JSON)  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
 │  │  ├─ DeckBuilder/
-│  │  ├─ Net/                   ITransport 구현, 세션
+│  │  ├─ Online/                OnlineScreen(방 화면), OnlineRunner(연결 유지·진행), IOnlineLink(HostLink/GuestLink), UserAssetSource
 │  │  ├─ UserAssets/            IFilePicker(StandaloneFilePicker), IUserAssetStore(LocalUserAssetStore), UserAssetImporter, UserAssetCache, ArtCropDialog, CardSoundPlayer, UserAssetService
 │  │  └─ Common/                KoreanFont(OS 한글 폰트), MaterialCache, Shapes(도형·글자), KoreanTerms
 │  ├─ EditorTools/              TCG.EditorTools.asmdef (에디터 전용) — 프로젝트 준비, Title·Battle 장면 생성, 화면 캡처
@@ -209,11 +210,33 @@ youerface-TCG/Assets/
   - 상대(게스트)는 Command만 보내고, 호스트는 검증 → 적용 → **플레이어별 시야로 가린 이벤트**(상대 손패·덱 내용 숨김)를 보낸다.
   - 단순 lockstep(양쪽이 같은 시드로 계산)은 상대 손패·덱 순서가 내 컴퓨터에서 계산되므로 쓰지 않는다.
 - **`ITransport` 인터페이스**로 통신을 분리:
-  - 1차 구현: **Unity Relay + Lobby (UGS)** — NAT 문제 해결, Win/Mac/모바일 크로스플레이.
+  - 1차 구현: **Unity Relay + Lobby (UGS)** — NAT 문제 해결, Win/Mac/모바일 크로스플레이. (M6-4, 사용자가 UGS 대시보드 연결 후)
   - Steam 출시 시: Steam 네트워킹은 Steam 사용자끼리만 연결되어 모바일 크로스플레이가 끊긴다. 대전 연결은 UGS로 유지하고 Steam은 친구 초대·오버레이·업적에만 쓰는 것을 권장.
 - 턴제라 메시지 단위 통신이면 충분. Netcode for GameObjects 같은 오브젝트 동기화 프레임워크는 쓰지 않는다.
 - 대전 시작 핸드셰이크: 앱/스키마/점수표 버전 확인 → 덱 교환 및 `ScoreCalculator`로 방 규칙 검증 → 없는 에셋(해시 기준) 전송 → 시작.
 - 나중에 전용 서버가 필요하면 Core를 그대로 서버에 올린다.
+
+### 6.1 구현 (M6-1·M6-2, `Core/Net`, 2026-10-13)
+
+- **시야** `PlayerView.Create(state, viewer)`: 진짜 상태 복제 → 양쪽 덱 전부와 상대 손패를 `HiddenCard.Definition`(ID `__hidden__`) 카드로 바꾸고 난수 상태를 지운다. `Reveal(before, after)`: 이번 변화로 공개된 카드(낸 카드 등)를 before에도 앞면으로 넣어 연출이 앞면을 그리게. `FilterEvents`: 가려진 카드의 `StatsChanged`·`UsageChanged`는 뺀다.
+- **카드 ID 누출 방지**: `GameEngine.StartGame`이 덱 정의 목록을 먼저 섞은 뒤 그 순서로 카드를 만든다(난수 사용량·덱 순서는 "만든 뒤 섞기"와 같음). 그래서 ID가 덱 목록 순서를 드러내지 않는다.
+- **스냅샷** `StateSnapshot.Capture(view, MatchCatalog)` / `ToState(rules, catalog)`: 카드 정의는 `MatchCatalog` 번호(객체 참조로 찾음 — 양쪽 카드 ID가 겹쳐도 됨, 덱 카드 + 안의 소환물, 추가만), 가려진 카드는 -1. 새로 쓰인 정의는 `UpdateMsg.CatalogAdds`로 따라 보낸다. 받은 쪽 상태는 화면용(난수 0 시드).
+- **코덱**: `NetCodec`(메시지 ↔ JSON, `"t"` = 클래스 이름에서 Msg 뺀 것), `EventCodec`(이벤트 ↔ JSON, 읽기 전용 속성 = 생성자 인자 이름 규칙, 리플렉션), `CommandData`(명령 ↔ JSON; 자리는 받는 호스트가 정함). 리플렉션 때문에 `Core/link.xml`로 IL2CPP 코드 줄이기에서 Core를 보존.
+- **`HostMatch`**: 진짜 상태 + 엔진. `Submit(seat, cmd)` → 검증·적용 → 자리별 `SeatUpdate`(시야 events·before·after·자동 처리·끝난 이유·`MatchClock`). `Tick(ms)`(정수 밀리초): 턴 시간(새 턴마다 채움, 선택 중엔 멈춤)·선택 시간(새 선택마다)·끊긴 플레이어 대기 시간. 넘으면 `AutoCommand`(패스할 수 있으면 패스, 아니면 첫 효과, 선택이 없으면 턴 종료). 연속 시간 초과·끊김 자동 횟수는 따로 세고 직접 행동하면 둘 다 0, 한도면 `ConcedeCommand`로 패배(`MatchEndReason`).
+- **`ConcedeCommand`**(Core 명령): 대전 중이면 누구든 언제든(선택 대기 중에도). 체인·선택을 비우고 상대 승리.
+- **방 규칙** `Core/Data/RoomRules`: `MaxCardScore`(null = 제한 없음). `Check` = `DeckValidator.Check` + 상한 초과 카드마다 `DeckIssueKind.OverScoreLimit`.
+- **전송** `ITransport`(문자열 메시지, 순서 보장, 폴링 `TryReceive`, `LinkState`) / `ITransportListener`(방). `LoopbackTransport`·`LoopbackListener`: 메모리 안 가짜 연결, `Drop()`으로 끊김 흉내.
+- **핸드셰이크** `OnlineHost`(자리 0) / `OnlineGuest`(자리 1): `Hello`(통신 `NetProtocol.Version`·앱 버전·카드 스키마·점수표 버전, 다르면 `Reject`) → `Welcome`(방장 이름·`RoomRules`·`RuleConfig`) → `DeckSubmit`(덱 + 카드 JSON) → `DeckRejected`(이유, 다른 덱으로 다시 낼 수 있음) / `DeckAccepted`(방장 덱 공개) → `AssetExchange`(상대 카드의 에셋 중 없는 것만 `AssetRequest`, 32KB 조각 `AssetChunk`, 없으면 `AssetMissing`, 받은 쪽이 해시·크기(`AssetLimits.MaxTransferBytes` 4MB)·확장자 확인 후 저장) → 손님 `AssetsReady` → `MatchStart`(자리·재접속 표) → `Update`… / 손님 `CommandMsg` → 거절 시 `CommandRejected`.
+- **끊김**: 호스트는 손님 연결이 닫히면 `HostMatch.SetConnected(1,false)`(그동안 Update는 안 보냄). 같은 표로 `Hello`가 오면 `Resync`(시야 상태 전체 + 카드 정의 전체)를 보내고 다시 연결됨. 손님은 방장과 끊기면 `Reconnecting`으로 `HostReconnectWaitSeconds` 동안 `Rejoin(transport)`을 기다리고, 넘으면 `Ended`(`HostLost`, 승패 미정 Q13). 대전 중 다른 접속은 거절.
+- 테스트: `Tests/Core/OnlineTests` — 시야 가림, 스냅샷·이벤트·명령 왕복, 방 규칙, 시간 초과·끊김 패배, 버전 거절, 덱 거절 후 다시 내기, 에셋 조각 전송, 루프백으로 끝까지 대전(손님이 다시 만든 시야 = 호스트가 만든 손님 시야, 해시 비교), 재접속 Resync, 방장 미복귀.
+
+### 6.2 화면 (M6-3, `Client/Online`)
+
+- `OnlineScreen`(Online 장면, 시작 화면 "온라인 대전" 버튼): 이름, 덱 ◀▶(샘플 + 덱 규칙 통과한 내 덱, 방 규칙 결과 표시), 방 규칙(카드 점수 상한 −/+, "제한 없음"), 인터넷 대전 버튼(UGS 전까지 꺼 둠), **가짜 연결로 시험**("내가 방장"/"내가 손님" — 같은 프로그램 안의 컴퓨터(보통 난이도)가 반대쪽, 덱은 내 덱과 다른 첫 샘플 덱).
+- `OnlineRunner`(DontDestroyOnLoad): 방장/손님 객체를 들고 매 프레임 실제 시간(ms)으로 `Update`. 대전이 시작되면 `Link`(`HostLink`/`GuestLink`)를 만들고 방 화면이 Battle 장면으로 넘어간다. 손님이 끊기면 2초마다 재접속 시도. 시험용 컴퓨터는 자기 시야로 0.9초 쉬고 둔다.
+- `BattleBootstrap`: `OnlineRunner.Current.Link`가 있으면 온라인으로 — 첫 변화의 시야 상태로 보드를 그리고(아래쪽 = 내 자리, 손님이면 1), `BattleSession(link, view, …)`. 세션은 받은 변화마다 `State`를 바꾸고 연출에 넘긴다. 명령은 먼저 시야 상태로 검사한 뒤 보내고 결과가 올 때까지 대기(`Awaiting`). HUD 위쪽 줄에 남은 시간(`내 턴 1:15`, 선택 시간, 시간 초과 n/3)·연결 문제, 자동 처리는 안내 문구, 오른쪽 위 "항복"(두 번 눌러 확인). 결과는 `ResultPanel.CreateOnline`(끝난 이유 + "나가기").
+- 가려진 카드가 공개되면 `CardView.Reveal`이 앞면을 다시 만든다(`BoardView.RevealFrom(batch.Before)`, 연출 묶음 시작마다).
+- 테스트: `Tests/Client/OnlinePlayModeTests` — 방장 시험(손패 가림, 시간 표시, 턴 3번 주고받기, 항복 → 결과 → 나가면 정리), 손님 시험(아래쪽이 자리 1, 끊고 자동 재접속 뒤 턴 종료).
 
 ## 7. 유저 에셋 (이미지·사운드) — M4-2
 

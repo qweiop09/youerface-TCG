@@ -140,6 +140,34 @@ namespace TCG.Core.State
             return copy;
         }
 
+        // --- 온라인 시야 상태 복원용 (Net.StateSnapshot, Net.PlayerView) ---
+
+        /// <summary>정해진 ID의 카드를 표에 넣는다(영역에는 넣지 않음). 표가 짧으면 빈 칸을 늘린다.</summary>
+        internal void PutEntity(Entity entity)
+        {
+            while (_entityTable.Count < entity.Id)
+                _entityTable.Add(null);
+            _entityTable[entity.Id - 1] = entity;
+            if (_nextEntityId <= entity.Id)
+                _nextEntityId = entity.Id + 1;
+        }
+
+        internal void SetNextEntityId(int next)
+        {
+            while (_entityTable.Count < next - 1)
+                _entityTable.Add(null);
+            _nextEntityId = next;
+        }
+
+        /// <summary>같은 ID의 카드를 바꿔 끼운다. 영역에 있으면 같은 자리에.</summary>
+        internal void ReplaceEntity(Entity replacement)
+        {
+            var old = GetEntity(replacement.Id);
+            if (old != null && old.Location.HasValue)
+                _players[old.OwnerIndex].GetZone(old.Location.Value).Replace(old, replacement);
+            PutEntity(replacement);
+        }
+
         /// <summary>ID로 카드를 찾는다. 어느 영역에도 없는 카드(사라진 소환물 등)도 찾는다.</summary>
         public Entity GetEntity(int entityId)
         {

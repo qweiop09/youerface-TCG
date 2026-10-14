@@ -115,6 +115,26 @@ namespace TCG.Client.Cards
             return sb.ToString();
         }
 
+        /// <summary>
+        /// 가려진 카드(온라인 상대 손패 등, <see cref="TCG.Core.Net.HiddenCard"/>)였는데 정체가 공개되면 앞면을 새 정의로 다시 만든다.
+        /// 위치·앞뒷면 상태는 유지. 바꿨으면 true.
+        /// </summary>
+        public bool Reveal(Entity entity)
+        {
+            if (!ReferenceEquals(_definition, TCG.Core.Net.HiddenCard.Definition) || ReferenceEquals(entity.Definition, _definition))
+                return false;
+            bool faceUp = FaceUp;
+            for (int i = transform.childCount - 1; i >= 0; i--)
+                Shapes.DestroyImmediateOrDeferred(transform.GetChild(i).gameObject);
+            var collider = GetComponent<BoxCollider>();
+            if (collider != null)
+                Shapes.DestroyImmediateOrDeferred(collider);
+            Build(entity);
+            SetFaceUp(faceUp);
+            gameObject.name = $"Card {entity.Id} {entity.Definition.Name}";
+            return true;
+        }
+
         public void SetFaceUp(bool faceUp)
         {
             FaceUp = faceUp;

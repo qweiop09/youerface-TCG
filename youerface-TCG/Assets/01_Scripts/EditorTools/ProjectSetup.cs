@@ -21,6 +21,7 @@ namespace TCG.EditorTools
         public const string BattleScenePath = "Assets/00_Scenes/Battle.unity";
         public const string CardMakerScenePath = "Assets/00_Scenes/CardMaker.unity";
         public const string DeckBuilderScenePath = "Assets/00_Scenes/DeckBuilder.unity";
+        public const string OnlineScenePath = "Assets/00_Scenes/Online.unity";
         const string MaterialsFolder = "Assets/03_Datas/Resources/Materials";
 
         [MenuItem("TCG/Setup/All")]
@@ -32,6 +33,7 @@ namespace TCG.EditorTools
             BuildTitleScene();
             BuildCardMakerScene();
             BuildDeckBuilderScene();
+            BuildOnlineScene();
         }
 
         /// <summary>
@@ -152,6 +154,11 @@ namespace TCG.EditorTools
         public static void BuildDeckBuilderScene() =>
             BuildScreenScene<TCG.Client.DeckBuilder.DeckBuilderScreen>(DeckBuilderScenePath, "DeckBuilder");
 
+        /// <summary>Online 장면(온라인 방): 카메라 + OnlineScreen.</summary>
+        [MenuItem("TCG/Setup/Build Online Scene")]
+        public static void BuildOnlineScene() =>
+            BuildScreenScene<TCG.Client.Online.OnlineScreen>(OnlineScenePath, "Online");
+
         /// <summary>UI만 있는 장면: 카메라 + 화면 컴포넌트 하나 (화면은 Start에서 코드로 UI를 만든다).</summary>
         static void BuildScreenScene<T>(string path, string objectName) where T : Component
         {
@@ -171,10 +178,10 @@ namespace TCG.EditorTools
             Debug.Log($"[Setup] Built {path}");
         }
 
-        /// <summary>빌드 목록: Title(첫 장면) → Battle → CardMaker → DeckBuilder → 나머지. 아직 없는 장면은 건너뛴다.</summary>
+        /// <summary>빌드 목록: Title(첫 장면) → Battle → CardMaker → DeckBuilder → Online → 나머지. 아직 없는 장면은 건너뛴다.</summary>
         static void RegisterScenes()
         {
-            var first = new[] { TitleScenePath, BattleScenePath, CardMakerScenePath, DeckBuilderScenePath }.Where(File.Exists).ToList();
+            var first = new[] { TitleScenePath, BattleScenePath, CardMakerScenePath, DeckBuilderScenePath, OnlineScenePath }.Where(File.Exists).ToList();
             var scenes = first.Select(path => new EditorBuildSettingsScene(path, true)).ToList();
             scenes.AddRange(EditorBuildSettings.scenes.Where(s => !first.Contains(s.path)));
             EditorBuildSettings.scenes = scenes.ToArray();

@@ -3,11 +3,13 @@ using TCG.Client.Board;
 using TCG.Client.Common;
 using TCG.Client.Flow;
 using TCG.Client.Interaction;
+using TCG.Client.Online;
 using TCG.Client.Presentation;
 using TCG.Client.UserAssets;
 using TCG.Core.AI;
 using TCG.Core.Commands;
 using TCG.Core.Data;
+using TCG.Core.Net;
 using TCG.Core.Rules;
 using TCG.Core.State;
 using UnityEngine;
@@ -39,8 +41,16 @@ namespace TCG.Client.Battle
 
         Transform _root;
         BattleDecks _decks;
+        OnlineRunner _online;
+        int _viewer = Viewer;
+        UnityEngine.UI.Button _concede;
+        bool _concedeArmed;
 
         public const int Viewer = 0;
+        /// <summary>온라인 대전인가 (방 화면에서 왔음).</summary>
+        public bool IsOnline => _online != null;
+        /// <summary>화면 아래쪽 플레이어 (온라인 손님이면 1).</summary>
+        public int ViewerSeat => _viewer;
         public BattleSession Session { get; private set; }
         public GameState State => Session?.State;
         public BoardView Board { get; private set; }
@@ -80,6 +90,12 @@ namespace TCG.Client.Battle
 
         void Start()
         {
+            if (OnlineRunner.Current != null && OnlineRunner.Current.Link != null)
+            {
+                _online = OnlineRunner.Current;
+                TryBuildOnline();
+                return;
+            }
             if (BattleLaunch.TryConsume(out var difficulty, out int seed, out var decks))
             {
                 _topAi = difficulty;
@@ -143,8 +159,73 @@ namespace TCG.Client.Battle
             Decisions.Init(Session, Board.Hud.transform);
         }
 
+        /// <summary>
+        /// 온라인 대전 화면: 첫 변화(대전 시작 직후의 시야 상태)가 오면 그 상태로 보드를 그린다. 아래쪽 = 내 자리.
+        /// </summary>
+        void TryBuildOnline()
+        {
+            var link = _online.Link;
+            if (!link.TryDequeue(out var first))
+                return;
+
+            if (_root != null)
+                Shapes.DestroyImmediateOrDeferred(_root.gameObject);
+            _root = new GameObject("Battle (online)").transform;
+            _root.SetParent(transform, false);
+            Result = null;
+            _viewer = link.Seat;
+
+            var camera = _camera != null ? _camera : Camera.main;
+            Board = BoardView.Create(_root, camera, _viewer);
+            Board.Sounds = _root.gameObject.AddComponent<CardSoundPlayer>();
+            Board.Sounds.Preload(new List<CardDefinition>(link.MatchCards));
+            Board.Render(first.After);
+            Player = _root.gameObject.AddComponent<PresentationPlayer>();
+            Player.Init(Board);
+            PresentationTime.Speed = _speed;
+
+            Session = new BattleSession(link, first.After, new GameEngine(), Player);
+            Session.OnlineUpdated += OnOnlineUpdate;
+            Session.OnlineRejected += reason => Board.Hud.ShowHint(reason);
+
+            UiFactory.EnsureEventSystem();
+            Board.Hud.CreateEndTurnButton(EndTurn);
+            _concede = UiFactory.Button(Board.Hud.transform, "Concede", "항복", new Vector2(1f, 1f), new Vector2(-110, -50),
+                new Vector2(160, 64), new Color(0.35f, 0.22f, 0.22f), Concede, 26f);
+            _root.gameObject.AddComponent<BattleInput>().Init(Session, Board);
+            Decisions = _root.gameObject.AddComponent<DecisionPanel>();
+            Decisions.Init(Session, Board.Hud.transform);
+        }
+
+        void OnOnlineUpdate(SeatUpdate update)
+        {
+            if (update.Auto == AutoReason.None || update.AutoPlayer < 0)
+                return;
+            bool me = update.AutoPlayer == _viewer;
+            string who = me ? "내" : "상대";
+            Board.Hud.ShowHint(update.Auto == AutoReason.Timeout
+                ? $"{who} 시간 초과 — 자동으로 진행했습니다"
+                : $"{who} 연결이 끊겨 자동으로 진행했습니다", 2.5f);
+        }
+
+        /// <summary>항복: 처음 누르면 확인 문구, 한 번 더 누르면 낸다.</summary>
+        void Concede()
+        {
+            if (!_concedeArmed)
+            {
+                _concedeArmed = true;
+                UiFactory.SetLabel(_concede, "정말 항복?");
+                return;
+            }
+            if (!_online.Link.Submit(new ConcedeCommand(_viewer), out var reason))
+                Board.Hud.ShowHint(reason);
+            _concede.interactable = false;
+        }
+
         void Update()
         {
+            if (_online != null && Session == null)
+                TryBuildOnline();
             if (Session == null)
                 return;
             Session.Tick(PresentationTime.DeltaTime);
@@ -154,13 +235,59 @@ namespace TCG.Client.Battle
                 endTurn.interactable = Session.HumanCanAct && State.Decision == null;
             Board.Hud.SetThinking(Session.AiThinking && !Session.Spectate);
 
+            if (_online != null)
+            {
+                UpdateOnlineHud();
+                bool over = !Session.InProgress || _online.Link.Ended;
+                if (Result == null && over && !Player.IsPlaying)
+                {
+                    Result = ResultPanel.CreateOnline(Board.Hud.transform, State, _viewer, _online.Link.EndReason, ExitOnline);
+                    if (_concede != null)
+                        _concede.gameObject.SetActive(false);
+                }
+                return;
+            }
+
             if (Result == null && !Session.InProgress && !Player.IsPlaying)
                 Result = ResultPanel.Create(Board.Hud.transform, State, Viewer, _topAi);
         }
 
+        /// <summary>남은 시간(내·상대 차례), 시간 초과 횟수, 연결 문제를 한 줄로.</summary>
+        void UpdateOnlineHud()
+        {
+            var link = _online.Link;
+            string note = link.ConnectionNote;
+            var clock = link.Clock;
+            if (note != null)
+            {
+                Board.Hud.SetOnline(note, new Color(1f, 0.55f, 0.45f));
+                return;
+            }
+            if (clock == null || clock.Mover < 0 || !Session.InProgress)
+            {
+                Board.Hud.SetOnline("", Color.white);
+                return;
+            }
+            bool mine = clock.Mover == _viewer;
+            int seconds = HostLink.Seconds(clock.RemainingMs);
+            string text = $"{(clock.Deciding ? "선택" : mine ? "내 턴" : "상대 턴")} {seconds / 60}:{seconds % 60:00}";
+            int timeouts = clock.Timeouts != null && clock.Mover < clock.Timeouts.Length ? clock.Timeouts[clock.Mover] : 0;
+            if (timeouts > 0)
+                text += $"   시간 초과 {timeouts}/{State.Rules.MaxConsecutiveTimeouts}";
+            var color = mine && seconds <= 15 ? new Color(1f, 0.5f, 0.4f) : new Color(0.85f, 0.9f, 1f);
+            Board.Hud.SetOnline(text, color);
+        }
+
+        void ExitOnline()
+        {
+            _online?.Close();
+            _online = null;
+            BattleLaunch.ToTitle();
+        }
+
         void EndTurn()
         {
-            if (!Session.TrySubmit(new EndTurnCommand(Viewer), out var reason))
+            if (!Session.TrySubmit(new EndTurnCommand(_viewer), out var reason))
                 Board.Hud.ShowHint(reason);
         }
     }

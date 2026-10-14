@@ -63,4 +63,13 @@ namespace TCG.Core.Commands
     {
         public PassChainCommand(int playerIndex) : base(playerIndex) { }
     }
+
+    /// <summary>
+    /// 항복. 대전 중이면 누구든 언제든(선택 대기 중에도) 할 수 있다.
+    /// 온라인 대전의 시간 초과·연결 끊김 패배(GameDesign §8.1)도 이 명령으로 처리한다.
+    /// </summary>
+    public sealed class ConcedeCommand : Command
+    {
+        public ConcedeCommand(int playerIndex) : base(playerIndex) { }
+    }
 }

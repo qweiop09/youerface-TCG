@@ -28,6 +28,18 @@ namespace TCG.Core.Data
         public bool FatigueEnabled { get; set; } = true;
         public int TurnTimeLimitSeconds { get; set; } = 75;
 
+        // --- 온라인 시간 제한·연결 끊김 (GameDesign §8.1: 형태 확정, 숫자 미정·임시값) ---
+        /// <summary>체인 기회(선택) 제한 시간. 넘으면 자동 선택.</summary>
+        public int DecisionTimeLimitSeconds { get; set; } = 20;
+        /// <summary>시간 초과 자동 처리가 연속 이만큼이면 패배. 직접 행동하면 0으로.</summary>
+        public int MaxConsecutiveTimeouts { get; set; } = 3;
+        /// <summary>끊긴 플레이어의 차례에서 자동 선택 전에 기다리는 시간.</summary>
+        public int DisconnectedActionWaitSeconds { get; set; } = 20;
+        /// <summary>끊긴 채 자동 선택이 이만큼이면 패배 (시간 초과 횟수와 따로 셈).</summary>
+        public int MaxDisconnectedAutoActions { get; set; } = 3;
+        /// <summary>게스트가 방장 재접속을 기다리는 시간. 넘으면 대전 종료(승패 미정 Q13, 지금은 무효).</summary>
+        public int HostReconnectWaitSeconds { get; set; } = 60;
+
         // --- 전투 (하스스톤 기준 임시값) ---
         /// <summary>기물 1개가 한 턴에 공격할 수 있는 횟수.</summary>
         public int AttacksPerTurn { get; set; } = 1;

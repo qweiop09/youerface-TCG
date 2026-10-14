@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using TCG.Client.Online;
 using TCG.Client.Presentation;
 using TCG.Core.AI;
 using TCG.Core.Commands;
 using TCG.Core.Events;
+using TCG.Core.Net;
 using TCG.Core.Rules;
 using TCG.Core.State;
 
@@ -15,11 +17,14 @@ namespace TCG.Client.Battle
     public sealed class BattleSession
     {
         readonly IAiPlayer[] _ai;
+        readonly IOnlineLink _link;
+        bool _awaiting;
         float _waited;
         Command _aiCommand;
         float _aiDelay;
 
-        public GameState State { get; }
+        /// <summary>대전 상태. 온라인이면 받은 시야 상태(변화가 올 때마다 바뀜).</summary>
+        public GameState State { get; private set; }
         public GameEngine Engine { get; }
         public PresentationPlayer Player { get; }
         /// <summary>사람이 조종하는 플레이어 (화면 아래쪽).</summary>
@@ -35,6 +40,16 @@ namespace TCG.Client.Battle
         public bool AiThinking => _aiCommand != null;
         public int CommandsApplied { get; private set; }
 
+        /// <summary>온라인 대전인가 (<see cref="IOnlineLink"/>).</summary>
+        public bool Online => _link != null;
+        public IOnlineLink Link => _link;
+        /// <summary>온라인: 명령을 보내고 결과를 기다리는 중.</summary>
+        public bool Awaiting => _awaiting;
+        /// <summary>온라인: 변화를 받았을 때 (자동 처리 안내 등).</summary>
+        public event System.Action<SeatUpdate> OnlineUpdated;
+        /// <summary>온라인: 방장이 명령을 거절했을 때 이유.</summary>
+        public event System.Action<string> OnlineRejected;
+
         public BattleSession(GameState state, GameEngine engine, PresentationPlayer player, int human, IAiPlayer[] ai)
         {
             State = state;
@@ -44,13 +59,23 @@ namespace TCG.Client.Battle
             _ai = ai;
         }
 
+        /// <summary>온라인 대전: 첫 시야 상태에서 시작해 상대(방장·손님)와 주고받는다. 컴퓨터는 없다.</summary>
+        public BattleSession(IOnlineLink link, GameState view, GameEngine engine, PresentationPlayer player)
+        {
+            _link = link;
+            State = view;
+            Engine = engine;
+            Player = player;
+            Human = link.Seat;
+        }
+
         /// <summary>지금 명령을 내야 하는 플레이어 (선택 대기 중이면 그 선택의 주인).</summary>
         public int Mover => State.Decision?.PlayerIndex ?? State.ActivePlayerIndex;
 
         public bool InProgress => State.Phase == GamePhase.InProgress;
 
         /// <summary>사람이 지금 행동할 수 있는가 (내 차례·내 선택이고, 연출이 끝났음).</summary>
-        public bool HumanCanAct => InProgress && !Spectate && Mover == Human && !Player.IsPlaying;
+        public bool HumanCanAct => InProgress && !Spectate && Mover == Human && !Player.IsPlaying && !_awaiting;
 
         public bool HumanHasDecision => HumanCanAct && State.Decision != null;
 
@@ -64,11 +89,24 @@ namespace TCG.Client.Battle
                 reason = "연출이 끝난 뒤에 할 수 있습니다.";
                 return false;
             }
+            if (_awaiting)
+            {
+                reason = "상대 응답을 기다리는 중입니다.";
+                return false;
+            }
             var validation = Engine.Validate(State, command);
             if (!validation.IsValid)
             {
                 reason = validation.Reason;
                 return false;
+            }
+            if (Online)
+            {
+                if (!_link.Submit(command, out reason))
+                    return false;
+                _awaiting = true;
+                TickOnline();
+                return true;
             }
             Apply(command);
             reason = null;
@@ -88,6 +126,11 @@ namespace TCG.Client.Battle
         /// </summary>
         public void Tick(float deltaTime)
         {
+            if (Online)
+            {
+                TickOnline();
+                return;
+            }
             if (!InProgress || Player.IsPlaying)
                 return;
             int mover = Mover;
@@ -110,6 +153,25 @@ namespace TCG.Client.Battle
             var command = _aiCommand;
             _aiCommand = null;
             Apply(command);
+        }
+
+        /// <summary>받은 변화를 연출에 넘기고 상태를 바꾼다. 거절이 왔으면 다시 행동할 수 있게.</summary>
+        void TickOnline()
+        {
+            while (_link.TryDequeue(out var update))
+            {
+                State = update.After;
+                _awaiting = false;
+                Player.Enqueue(update.Events, update.Before, update.After);
+                CommandsApplied++;
+                OnlineUpdated?.Invoke(update);
+            }
+            string rejection = _link.TakeRejection();
+            if (rejection != null)
+            {
+                _awaiting = false;
+                OnlineRejected?.Invoke(rejection);
+            }
         }
 
         /// <summary>규칙 엔진 기준으로 이 카드를 내려면 대상을 골라야 하는가.</summary>
