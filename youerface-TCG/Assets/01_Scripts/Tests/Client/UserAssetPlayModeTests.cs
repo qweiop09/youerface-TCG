@@ -119,7 +119,7 @@ namespace TCG.Tests.Client
             var view = CardDetailView.Create(canvas.transform);
             var def = new CardDefinition { Id = "c_art", Name = "그림", Type = CardType.Spell, Cost = 1 };
             def.Art.Image = hash;
-            view.Show(new Entity(1, 0, def), null);
+            view.Show(new Entity(1, 0, def));
 
             var image = view.transform.Find("Art/ArtImage");
             Assert.That(image.gameObject.activeSelf, Is.True);

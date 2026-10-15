@@ -1,4 +1,3 @@
-using System.Text;
 using TCG.Client.Common;
 using TCG.Client.UserAssets;
 using TCG.Core.Data;
@@ -17,6 +16,15 @@ namespace TCG.Client.Cards
     {
         public const float Width = 1f;
         public const float Height = 1.4f;
+
+        // 앞면 배치 (카드 로컬 Z, + = 카드 위쪽)
+        const float ArtZ = 0.34f;
+        const float ArtHeight = 0.5f;
+        const float NameZ = -0.01f;
+        const float TextZ = -0.37f;
+        const float TextHeight = 0.46f;
+        const float TextMaxSize = 0.95f;
+        const float TextMinSize = 0.35f;
         const float Thickness = 0.03f;
         const float Top = Thickness * 0.5f + 0.002f;
 
@@ -74,18 +82,29 @@ namespace TCG.Client.Cards
             _faceRoot.transform.SetParent(transform, false);
             var face = _faceRoot.transform;
 
-            // 그림 자리: 유저 그림이 있으면 그림, 없으면 종류 이름을 크게 적는다.
-            Shapes.Box(face, "Art", new Vector3(0, Top, 0.22f), new Vector3(0.86f, 0.002f, 0.72f), CardPalette.Art(type));
+            // 앞면 (위 → 아래): 그림 → 이름 띠 → 효과 글씨 칸 (손패에서도 효과를 읽게, GameDesign §11.1).
+            // 그림 자리: 유저 그림이 있으면 그림(6:5), 없으면 종류 이름을 크게 적는다.
+            Shapes.Box(face, "Art", new Vector3(0, Top, ArtZ), new Vector3(0.86f, 0.002f, ArtHeight), CardPalette.Art(type));
             var art = UserAssetService.Cache.Texture(_definition.Art?.Image);
             if (art != null)
-                Shapes.Picture(face, "ArtImage", new Vector3(0, Top + 0.003f, 0.22f), 0.86f, 0.72f, art);
+                Shapes.Picture(face, "ArtImage", new Vector3(0, Top + 0.003f, ArtZ), ArtHeight * 1.2f, ArtHeight, art);
             else
-                Shapes.Label(face, "TypeLabel", KoreanTerms.Of(type), new Vector3(0, Top + 0.004f, 0.22f), 2.4f,
+                Shapes.Label(face, "TypeLabel", KoreanTerms.Of(type), new Vector3(0, Top + 0.004f, ArtZ), 2.2f,
                     new Color(1f, 1f, 1f, 0.55f), 0.8f, 0.4f);
 
-            Shapes.Box(face, "Banner", new Vector3(0, Top, -0.24f), new Vector3(0.94f, 0.002f, 0.2f), CardPalette.Banner);
-            Shapes.Label(face, "Name", _definition.Name ?? "", new Vector3(0, Top + 0.004f, -0.24f), 1.6f, CardPalette.Text, 0.9f, 0.2f, ellipsis: true);
-            Shapes.Label(face, "Keywords", KeywordLine(entity), new Vector3(0, Top + 0.004f, -0.43f), 1.3f, CardPalette.Text, 0.9f, 0.18f, ellipsis: true);
+            Shapes.Box(face, "Banner", new Vector3(0, Top, NameZ), new Vector3(0.94f, 0.002f, 0.18f), CardPalette.Banner);
+            Shapes.Label(face, "Name", _definition.Name ?? "", new Vector3(0, Top + 0.004f, NameZ), 1.5f, CardPalette.Text, 0.9f, 0.18f, ellipsis: true);
+
+            // 효과 글씨: 키워드는 굵게, 칸에 맞게 글씨 크기 자동 축소. 아래 모서리 숫자 배지와 겹치지 않게 폭을 좁힌다.
+            Shapes.Box(face, "TextBox", new Vector3(0, Top, TextZ), new Vector3(0.86f, 0.002f, TextHeight), CardPalette.TextBox);
+            var body = Shapes.Label(face, "Body", CardDetailView.BodyText(entity, flavor: false), new Vector3(0, Top + 0.004f, TextZ + 0.01f),
+                TextMaxSize, CardPalette.TextDark, 0.66f, TextHeight - 0.04f);
+            body.enableAutoSizing = true;
+            body.fontSizeMin = TextMinSize;
+            body.fontSizeMax = TextMaxSize;
+            body.textWrappingMode = TextWrappingModes.Normal;
+            body.overflowMode = TextOverflowModes.Ellipsis;
+            body.lineSpacing = -12f;
 
             _cost = Badge(face, "Cost", new Vector3(-0.4f, 0, 0.6f), CardPalette.CostBadge, out _costBadge);
             _attack = Badge(face, "Attack", new Vector3(-0.4f, 0, -0.6f), CardPalette.AttackBadge, out _attackBadge);
@@ -102,17 +121,6 @@ namespace TCG.Client.Cards
             badge.transform.localPosition = pos;
             Shapes.Disc(badge.transform, "Disc", new Vector3(0, Top + 0.01f, 0), 0.3f, 0.02f, color);
             return Shapes.Bold(Shapes.Label(badge.transform, "Value", "", new Vector3(0, Top + 0.025f, 0), 2.2f, Color.white, 0.4f, 0.3f));
-        }
-
-        static string KeywordLine(Entity entity)
-        {
-            var sb = new StringBuilder();
-            for (int i = 0; i < entity.Keywords.Count; i++)
-            {
-                if (i > 0) sb.Append(" · ");
-                sb.Append(KoreanTerms.Of(entity.Keywords[i]));
-            }
-            return sb.ToString();
         }
 
         /// <summary>

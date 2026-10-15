@@ -10,6 +10,9 @@ namespace TCG.Client.Cards
         public static readonly Color BackTrim = new Color(0.78f, 0.64f, 0.32f);
         public static readonly Color Banner = new Color(0.1f, 0.1f, 0.12f);
         public static readonly Color Text = new Color(0.97f, 0.95f, 0.9f);
+        /// <summary>3D 카드 효과 글씨 칸 바탕과 글자색.</summary>
+        public static readonly Color TextBox = new Color(0.94f, 0.91f, 0.84f);
+        public static readonly Color TextDark = new Color(0.1f, 0.08f, 0.06f);
         public static readonly Color CostBadge = new Color(0.2f, 0.45f, 0.9f);
         public static readonly Color AttackBadge = new Color(0.92f, 0.72f, 0.18f);
         public static readonly Color HealthBadge = new Color(0.8f, 0.2f, 0.2f);

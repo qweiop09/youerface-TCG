@@ -128,9 +128,10 @@ namespace TCG.Client.DeckBuilder
             _cardList = FormColumn.Create(root, "CardList", new Vector2(0f, 0.5f), new Vector2(410, -95), new Vector2(760, 780));
 
             // 가운데: 미리보기 + 덱 요약
-            var previewRoot = UiFactory.Rect(root, "Preview", new Vector2(0.5f, 0.5f), new Vector2(80, 180),
+            // 카드 왼쪽 위 키워드 설명 창·소환물 미니 카드 자리를 남기도록 0.7배, 오른쪽으로 옮김 (카드 목록과 덱 칸 사이).
+            var previewRoot = UiFactory.Rect(root, "Preview", new Vector2(0.5f, 0.5f), new Vector2(181, 180),
                 new Vector2(CardDetailView.Width, CardDetailView.Height));
-            previewRoot.localScale = Vector3.one * 0.82f;
+            previewRoot.localScale = Vector3.one * 0.7f;
             _preview = CardDetailView.Create(previewRoot);
             BuildCurve(root);
             _types = UiFactory.Text(root, "Types", "", new Vector2(0.5f, 0.5f), new Vector2(80, -380), new Vector2(480, 40), 24);
@@ -547,7 +548,7 @@ namespace TCG.Client.DeckBuilder
                 Pool.Catalog.TryGet(PreviewId, out card);
             _preview.gameObject.SetActive(card != null);
             if (card != null)
-                _preview.Show(new Entity(0, 0, card), EffectText.Describe);
+                _preview.Show(new Entity(0, 0, card));
         }
 
         void RefreshHeading()

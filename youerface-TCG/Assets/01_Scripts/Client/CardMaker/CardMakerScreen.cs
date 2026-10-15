@@ -37,6 +37,8 @@ namespace TCG.Client.CardMaker
         static readonly Color MutedColor = new Color(0.75f, 0.77f, 0.82f);
 
         readonly RuleConfig _rules = RuleConfig.CreateDefault();
+        /// <summary>미리보기 카드 가운데 X (왼쪽 설명 창 자리를 비워 둔 위치).</summary>
+        const float PreviewX = 100f;
         readonly ScoreTable _scoreTable = ScoreTable.CreateDefault();
         /// <summary>편집 경로: [0] = 최상위 카드, 그 뒤 = 들어가 편집 중인 소환물.</summary>
         readonly List<CardDefinition> _path = new List<CardDefinition>();
@@ -93,16 +95,18 @@ namespace TCG.Client.CardMaker
             _left = FormColumn.Create(root, "Basics", new Vector2(0f, 0.5f), new Vector2(330, -60), new Vector2(600, 900));
             _right = FormColumn.Create(root, "Effects", new Vector2(1f, 0.5f), new Vector2(-350, -60), new Vector2(640, 900));
 
-            var previewRoot = UiFactory.Rect(root, "Preview", new Vector2(0.5f, 0.5f), new Vector2(-30, 120),
+            // 카드 왼쪽 위에 키워드 설명 창·소환물 미니 카드가 붙으므로(대전 화면과 같은 모양) 0.85배로 줄여 두 칸 사이에 맞춘다.
+            var previewRoot = UiFactory.Rect(root, "Preview", new Vector2(0.5f, 0.5f), new Vector2(PreviewX, 120),
                 new Vector2(CardDetailView.Width, CardDetailView.Height));
+            previewRoot.localScale = Vector3.one * 0.85f;
             _preview = CardDetailView.Create(previewRoot);
 
-            _score = UiFactory.Text(root, "Score", "", new Vector2(0.5f, 0.5f), new Vector2(-30, -225), new Vector2(560, 60), 40);
+            _score = UiFactory.Text(root, "Score", "", new Vector2(0.5f, 0.5f), new Vector2(PreviewX, -225), new Vector2(380, 60), 40);
             _score.fontStyle = FontStyles.Bold;
-            _scoreLines = UiFactory.Text(root, "ScoreLines", "", new Vector2(0.5f, 0.5f), new Vector2(-30, -290), new Vector2(560, 70), 22);
+            _scoreLines = UiFactory.Text(root, "ScoreLines", "", new Vector2(0.5f, 0.5f), new Vector2(PreviewX, -290), new Vector2(380, 70), 22);
             _scoreLines.color = MutedColor;
             _scoreLines.textWrappingMode = TextWrappingModes.Normal;
-            _problems = UiFactory.Text(root, "Problems", "", new Vector2(0.5f, 0.5f), new Vector2(-30, -390), new Vector2(560, 130), 22,
+            _problems = UiFactory.Text(root, "Problems", "", new Vector2(0.5f, 0.5f), new Vector2(PreviewX, -390), new Vector2(380, 130), 22,
                 TextAlignmentOptions.Top);
             _problems.textWrappingMode = TextWrappingModes.Normal;
             _problems.overflowMode = TextOverflowModes.Ellipsis;
@@ -340,7 +344,7 @@ namespace TCG.Client.CardMaker
         void RefreshPreview()
         {
             var editing = Editing;
-            _preview.Show(new Entity(0, 0, editing), EffectText.Describe);
+            _preview.Show(new Entity(0, 0, editing));
 
             var sb = new StringBuilder();
             for (int i = 0; i < _path.Count; i++)

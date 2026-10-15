@@ -50,12 +50,25 @@ namespace TCG.Client.Presentation
         public void Show(Entity entity)
         {
             ShownEntityId = entity.Id;
-            _card.Show(entity, EffectText.Describe);
+            _card.Show(entity);
             IsOpen = true;
             transform.SetAsLastSibling(); // 나중에 생긴 HUD 요소(체인 창 등)보다 위
             _openedFrame = Time.frameCount;
             _group.blocksRaycasts = true;
             Animate(Open());
+        }
+
+        /// <summary>애니메이션 없이 바로 연 상태로 (화면 캡처·테스트용).</summary>
+        public void ShowInstant(Entity entity)
+        {
+            ShownEntityId = entity.Id;
+            _card.Show(entity);
+            IsOpen = true;
+            transform.SetAsLastSibling();
+            _openedFrame = Time.frameCount;
+            _group.blocksRaycasts = true;
+            _group.alpha = 1f;
+            _cardRoot.localScale = Vector3.one;
         }
 
         public void Close()
@@ -73,7 +86,9 @@ namespace TCG.Client.Presentation
         {
             if (!IsOpen || Time.frameCount == _openedFrame)
                 return;
-            bool click = Pointer.current != null && Pointer.current.press.wasPressedThisFrame;
+            bool click = Pointer.current != null && Pointer.current.press.wasPressedThisFrame
+                         // 소환물 미니 카드·돌아가기 버튼은 창을 닫지 않는다.
+                         && !_card.IsOverNavigation(Pointer.current.position.ReadValue());
             bool esc = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
             if (click || esc)
                 Close();

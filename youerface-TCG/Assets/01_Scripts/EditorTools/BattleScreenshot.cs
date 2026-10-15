@@ -86,6 +86,11 @@ namespace TCG.EditorTools
 
         static void ApplyPose(TCG.Client.Board.BoardView board, string pose)
         {
+            if (pose == "inspect")
+            {
+                InspectSample(board);
+                return;
+            }
             var card = pose == "hover" ? board.BottomHandCard(1) ?? board.BottomHandCard(0) : board.BottomHandCard(0);
             if (card == null || string.IsNullOrEmpty(pose))
                 return;
@@ -113,6 +118,41 @@ namespace TCG.EditorTools
                 return;
             card.transform.SetPositionAndRotation(position, rotation);
             card.transform.localScale = Vector3.one * scale;
+        }
+
+        /// <summary>
+        /// 카드 확인 창을 바로 띄운다: 양쪽 손패·덱·보드에서 소환물을 만드는 카드 → 키워드 + 효과 여러 개 → 키워드 카드 순으로 고른다.
+        /// </summary>
+        static void InspectSample(TCG.Client.Board.BoardView board)
+        {
+            var state = UnityEngine.Object.FindAnyObjectByType<BattleBootstrap>().Session.State;
+            TCG.Core.State.Entity pick = null;
+            int Rank(TCG.Core.State.Entity e)
+            {
+                var effects = e.Definition.Effects;
+                if (effects != null && effects.Exists(x => x?.Action?.Type == TCG.Core.Data.ActionType.CreateSummon)) return 3;
+                if (e.Keywords.Count > 0 && effects != null && effects.Count > 1) return 2;
+                if (e.Keywords.Count > 0) return 1;
+                return 0;
+            }
+            for (int p = 0; p < 2; p++)
+            {
+                var player = state.GetPlayer(p);
+                foreach (var zone in new[] { player.Hand, player.Deck, player.Minions, player.Companions, player.Field })
+                {
+                    foreach (var e in zone.Entities)
+                    {
+                        if (pick == null || Rank(e) > Rank(pick))
+                            pick = e;
+                    }
+                }
+            }
+            if (pick != null)
+                board.Hud.Inspect.ShowInstant(pick);
+            Canvas.ForceUpdateCanvases();
+            // 키워드 설명 창은 레이아웃 그룹으로 쌓으므로 프레임 없이 바로 계산시킨다.
+            for (int i = 0; i < 3; i++)
+                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)board.Hud.Inspect.transform);
         }
 
         static string Arg(string name, string fallback)

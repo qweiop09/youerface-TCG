@@ -43,7 +43,7 @@ namespace TCG.Client.Presentation
         {
             ShownCount++;
             _caption.text = caption;
-            _card.Show(entity, EffectText.Describe);
+            _card.Show(entity);
             var rect = (RectTransform)transform;
 
             for (float t = 0; t < 0.18f; t += PresentationTime.DeltaTime)
