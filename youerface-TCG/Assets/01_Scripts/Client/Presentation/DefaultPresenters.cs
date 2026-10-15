@@ -24,7 +24,7 @@ namespace TCG.Client.Presentation
 
         public static void RegisterAll(PresenterRegistry r)
         {
-            r.Register<GameStartedEvent>((c, e) => c.Board.Hud.Banner("대전 시작", Color.white, 0.6f));
+            r.Register<GameStartedEvent>((c, e) => c.Board.Hud.CoinToss.Play(c.IsMine(e.FirstPlayerIndex), c.After.Rules));
             r.Register<TurnStartedEvent>(TurnStarted);
             r.Register<CostChangedEvent>(CostChanged);
             r.Register<CardDrawnEvent>(Drawn);

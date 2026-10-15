@@ -1,7 +1,7 @@
 # 기술 설계서
 
 > 기획 내용·용어는 [GameDesign.md](GameDesign.md)가 기준이다. 이 문서는 "어떻게 만드는가"만 다룬다.
-> 최종 갱신: 2026-10-12
+> 최종 갱신: 2026-10-15
 
 ## 1. 큰 그림
 
@@ -34,13 +34,13 @@ youerface-TCG/Assets/
 │  │  ├─ Scoring/               ScoreCalculator (static), ScoreTable
 │  │  ├─ Random/                DeterministicRng
 │  │  ├─ AI/                    컴퓨터 플레이어 (EasyAi, SearchAi), 시야 제한(AiView), 가능한 명령 목록, 판세 평가
-│  │  ├─ Net/                   온라인(M6): 시야 필터, 상태 스냅샷, 메시지, ITransport·루프백, HostMatch, OnlineHost/OnlineGuest
+│  │  ├─ Net/                   온라인(M6): 시야 필터, 상태 스냅샷, 메시지, ITransport·루프백, HostMatch, OnlineHost/OnlineGuest, CoinToss
 │  │  └─ Serialization/         JSON 직렬화
 │  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
 │  │  ├─ Battle/                BattleBootstrap(장면 시작점), BattleSession(명령 검증·적용·연출 등록·컴퓨터 차례), SampleData
 │  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
 │  │  ├─ Cards/                 CardView(보드 위 3D 카드), CardDetailView(크게 보는 uGUI 카드: 키워드 설명·효과 설명), CardPalette
-│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay
+│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay, CoinTossOverlay(대전 시작 코인 토스)
 │  │  ├─ Flow/                  BattleLaunch(장면 이동·난이도/시드 전달), TitleScreen(난이도 선택), ResultPanel(결과 화면)
 │  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
 │  │  ├─ CardMaker/             CardMakerScreen(카드 제작 화면), FormColumn(편집 줄 쌓기), LocalCardLibrary(내 카드 JSON)  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)
@@ -220,8 +220,9 @@ youerface-TCG/Assets/
   - 1차 구현: **Unity Relay + Lobby (UGS)** — NAT 문제 해결, Win/Mac/모바일 크로스플레이. (M6-4, 사용자가 UGS 대시보드 연결 후)
   - Steam 출시 시: Steam 네트워킹은 Steam 사용자끼리만 연결되어 모바일 크로스플레이가 끊긴다. 대전 연결은 UGS로 유지하고 Steam은 친구 초대·오버레이·업적에만 쓰는 것을 권장.
 - 턴제라 메시지 단위 통신이면 충분. Netcode for GameObjects 같은 오브젝트 동기화 프레임워크는 쓰지 않는다.
-- 버전 (M5.5-0): 통신 `NetProtocol.Version` 3(2: 피해 이벤트에 `damageType`, 3: 기물 칸 번호), 카드 스키마 3, 점수표 2. 하나라도 다르면 접속 거절.
-- 대전 시작 핸드셰이크: 앱/스키마/점수표 버전 확인 → 덱 교환 및 `ScoreCalculator`로 방 규칙 검증 → 없는 에셋(해시 기준) 전송 → 시작.
+- 버전: 통신 `NetProtocol.Version` 5(2: 피해 이벤트에 `damageType`, 3: 기물 칸 번호, 4: 카드 사용 이벤트의 고른 대상, 5: 코인 토스), 카드 스키마 3, 점수표 2. 하나라도 다르면 접속 거절.
+- 대전 시작 핸드셰이크: 앱/스키마/점수표 버전 확인 → 덱 교환 및 `ScoreCalculator`로 방 규칙 검증 → 없는 에셋(해시 기준) 전송 → 코인 토스로 선공 결정 → 시작.
+- **코인 토스** (`CoinToss`, M5.5-2): 약속-공개 방식. 방장은 비밀값 해시만 `Welcome.CoinCommit`으로 먼저 보내고, 손님은 그 뒤 자기 비밀값을 `DeckSubmit.CoinSecret`으로 보낸다. 방장은 `MatchStart.CoinSecret`으로 비밀값을 공개하고 선공 = SHA-256(방장값|손님값)의 첫 바이트 & 1 (0 = 방장). 손님은 해시가 약속과 같은지, 첫 `Update`의 `GameStarted` 선공이 계산값과 같은지 확인하고 다르면 대전에 들어가지 않는다. 비밀값은 암호용 난수(16바이트)로 만들며 게임 규칙 난수와 무관하다 — 결과만 `GameEngine.StartGame(firstPlayer)`에 넘기고, 이때도 난수 1번을 써서 덱 섞기는 시드만으로 정해진다. (덱 섞기 시드는 지금도 방장이 정함 — 호스트 판정 구조상 손님이 검증할 수 없음.)
 - 나중에 전용 서버가 필요하면 Core를 그대로 서버에 올린다.
 
 ### 6.1 구현 (M6-1·M6-2, `Core/Net`, 2026-10-13)
@@ -234,7 +235,7 @@ youerface-TCG/Assets/
 - **`ConcedeCommand`**(Core 명령): 대전 중이면 누구든 언제든(선택 대기 중에도). 체인·선택을 비우고 상대 승리.
 - **방 규칙** `Core/Data/RoomRules`: `MaxCardScore`(null = 제한 없음). `Check` = `DeckValidator.Check` + 상한 초과 카드마다 `DeckIssueKind.OverScoreLimit`.
 - **전송** `ITransport`(문자열 메시지, 순서 보장, 폴링 `TryReceive`, `LinkState`) / `ITransportListener`(방). `LoopbackTransport`·`LoopbackListener`: 메모리 안 가짜 연결, `Drop()`으로 끊김 흉내.
-- **핸드셰이크** `OnlineHost`(자리 0) / `OnlineGuest`(자리 1): `Hello`(통신 `NetProtocol.Version`·앱 버전·카드 스키마·점수표 버전, 다르면 `Reject`) → `Welcome`(방장 이름·`RoomRules`·`RuleConfig`) → `DeckSubmit`(덱 + 카드 JSON) → `DeckRejected`(이유, 다른 덱으로 다시 낼 수 있음) / `DeckAccepted`(방장 덱 공개) → `AssetExchange`(상대 카드의 에셋 중 없는 것만 `AssetRequest`, 32KB 조각 `AssetChunk`, 없으면 `AssetMissing`, 받은 쪽이 해시·크기(`AssetLimits.MaxTransferBytes` 4MB)·확장자 확인 후 저장) → 손님 `AssetsReady` → `MatchStart`(자리·재접속 표) → `Update`… / 손님 `CommandMsg` → 거절 시 `CommandRejected`.
+- **핸드셰이크** `OnlineHost`(자리 0) / `OnlineGuest`(자리 1): `Hello`(통신 `NetProtocol.Version`·앱 버전·카드 스키마·점수표 버전, 다르면 `Reject`) → `Welcome`(방장 이름·`RoomRules`·`RuleConfig`·코인 약속) → `DeckSubmit`(덱 + 카드 JSON + 손님 코인) → `DeckRejected`(이유, 다른 덱으로 다시 낼 수 있음) / `DeckAccepted`(방장 덱 공개) → `AssetExchange`(상대 카드의 에셋 중 없는 것만 `AssetRequest`, 32KB 조각 `AssetChunk`, 없으면 `AssetMissing`, 받은 쪽이 해시·크기(`AssetLimits.MaxTransferBytes` 4MB)·확장자 확인 후 저장) → 손님 `AssetsReady` → `MatchStart`(자리·재접속 표·코인 공개) → `Update`… / 손님 `CommandMsg` → 거절 시 `CommandRejected`.
 - **끊김**: 호스트는 손님 연결이 닫히면 `HostMatch.SetConnected(1,false)`(그동안 Update는 안 보냄). 같은 표로 `Hello`가 오면 `Resync`(시야 상태 전체 + 카드 정의 전체)를 보내고 다시 연결됨. 손님은 방장과 끊기면 `Reconnecting`으로 `HostReconnectWaitSeconds` 동안 `Rejoin(transport)`을 기다리고, 넘으면 `Ended`(`HostLost`, 승패 미정 Q13). 대전 중 다른 접속은 거절.
 - 테스트: `Tests/Core/OnlineTests` — 시야 가림, 스냅샷·이벤트·명령 왕복, 방 규칙, 시간 초과·끊김 패배, 버전 거절, 덱 거절 후 다시 내기, 에셋 조각 전송, 루프백으로 끝까지 대전(손님이 다시 만든 시야 = 호스트가 만든 손님 시야, 해시 비교), 재접속 Resync, 방장 미복귀.
 

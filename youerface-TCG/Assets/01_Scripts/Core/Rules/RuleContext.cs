@@ -676,7 +676,10 @@ namespace TCG.Core.Rules
             State.ActivePlayerIndex = playerIndex;
             State.TurnNumber++;
 
-            int nextMax = player.TurnsTaken == 0 ? rules.StartingMaxCost : player.MaxCost + rules.MaxCostGainPerTurn;
+            // 첫 턴: 상대가 이미 턴을 가졌으면 후공 — 대전 시작 때 받은 코스트 그대로, 늘지 않음 (GameDesign §11.3).
+            int nextMax = player.TurnsTaken > 0 ? player.MaxCost + rules.MaxCostGainPerTurn
+                : State.GetOpponent(playerIndex).TurnsTaken > 0 ? rules.SecondPlayerStartingMaxCost
+                : rules.StartingMaxCost;
             player.MaxCost = Math.Min(nextMax, rules.MaxCostLimit);
             player.AvailableCost = player.MaxCost;
             player.TurnsTaken++;

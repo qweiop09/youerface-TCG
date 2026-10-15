@@ -16,6 +16,8 @@ namespace TCG.Core.Net
         public CardCatalog Cards { get; set; }
         public ScoreTable Scores { get; set; } = ScoreTable.CreateDefault();
         public AssetLimits Limits { get; set; }
+        /// <summary>코인 토스 비밀값. null이면 새로 만든다 (테스트에서만 지정).</summary>
+        public string CoinSecret { get; set; }
     }
 
     public enum GuestPhase
@@ -51,6 +53,8 @@ namespace TCG.Core.Net
         bool _readySent;
         int _nextSeq = 1;
         int _lostMs;
+        readonly string _coinSecret;
+        string _hostCoinCommit;
 
         public GuestPhase Phase { get; private set; } = GuestPhase.Connecting;
         public string HostName { get; private set; }
@@ -61,6 +65,8 @@ namespace TCG.Core.Net
         public List<string> DeckIssues { get; } = new List<string>();
         public string RejectReason { get; private set; }
         public int Seat { get; private set; } = OnlineHost.GuestSeat;
+        /// <summary>코인 토스로 정한 선공 자리 (방장 공개값을 확인한 뒤, 그 전이면 -1).</summary>
+        public int FirstSeat { get; private set; } = -1;
         public string RejoinToken { get; private set; }
         /// <summary>지금 시야 상태 (대전 전이면 null).</summary>
         public GameState View { get; private set; }
@@ -79,6 +85,7 @@ namespace TCG.Core.Net
             _setup = setup ?? throw new ArgumentNullException(nameof(setup));
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _assetStore = assetStore;
+            _coinSecret = setup.CoinSecret ?? CoinToss.NewSecret();
         }
 
         public void Update(int elapsedMs)
@@ -176,7 +183,7 @@ namespace TCG.Core.Net
             }
             DeckIssues.Clear();
             Phase = GuestPhase.DeckSent;
-            Send(new DeckSubmitMsg { Deck = _setup.Deck, Cards = NetCodec.EncodeCards(distinct) });
+            Send(new DeckSubmitMsg { Deck = _setup.Deck, Cards = NetCodec.EncodeCards(distinct), CoinSecret = _coinSecret });
         }
 
         /// <summary>명령을 보낸다. 결과는 다음 변화(Updates) 또는 <see cref="LastCommandRejection"/>.</summary>
@@ -215,6 +222,7 @@ namespace TCG.Core.Net
                     HostName = welcome.HostName;
                     Room = welcome.Room ?? new RoomRules();
                     Rules = welcome.Rules ?? RuleConfig.CreateDefault();
+                    _hostCoinCommit = welcome.CoinCommit;
                     SendDeck();
                     break;
                 case DeckRejectedMsg rejected:
@@ -232,6 +240,12 @@ namespace TCG.Core.Net
                     _assets.RequestMissing(hostCards, _transport);
                     break;
                 case MatchStartMsg start:
+                    if (!CoinToss.Verify(_hostCoinCommit, start.CoinSecret))
+                    {
+                        CoinMismatch();
+                        break;
+                    }
+                    FirstSeat = CoinToss.FirstSeat(start.CoinSecret, _coinSecret);
                     Seat = start.Seat;
                     RejoinToken = start.RejoinToken;
                     Phase = GuestPhase.Playing;
@@ -251,9 +265,28 @@ namespace TCG.Core.Net
             }
         }
 
+        /// <summary>방장의 코인 공개값이 약속과 다르거나, 대전 시작 선공이 코인 결과와 다르면 대전에 들어가지 않는다.</summary>
+        void CoinMismatch()
+        {
+            RejectReason = "방장의 코인 토스 결과를 확인할 수 없습니다.";
+            Phase = GuestPhase.Rejected;
+            _transport.Close();
+        }
+
         void HandleUpdate(UpdateMsg update)
         {
+            if (Phase != GuestPhase.Playing && Phase != GuestPhase.Ended)
+                return;
             _catalog.AddRange(NetCodec.DecodeCards(update.CatalogAdds));
+            var events = EventCodec.DecodeAll(update.Events);
+            for (int i = 0; i < events.Count; i++)
+            {
+                if (events[i] is Events.GameStartedEvent started && started.FirstPlayerIndex != FirstSeat)
+                {
+                    CoinMismatch();
+                    return;
+                }
+            }
             var after = update.Snapshot.ToState(Rules, _catalog);
             var before = update.Before != null
                 ? PlayerView.Reveal(update.Before.ToState(Rules, _catalog), after)
@@ -266,7 +299,7 @@ namespace TCG.Core.Net
             Updates.Enqueue(new SeatUpdate
             {
                 Seat = Seat,
-                Events = EventCodec.DecodeAll(update.Events),
+                Events = events,
                 Before = before,
                 After = after,
                 Auto = update.Auto,

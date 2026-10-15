@@ -59,6 +59,7 @@ namespace TCG.Client.Board
             view._online.text = "";
             view.BigCard = BigCardOverlay.Create(go.transform);
             view.Inspect = CardInspectOverlay.Create(go.transform);
+            view.CoinToss = CoinTossOverlay.Create(go.transform);
             return view;
         }
 
@@ -84,6 +85,8 @@ namespace TCG.Client.Board
         public BigCardOverlay BigCard { get; private set; }
         /// <summary>카드 확인 (짧은 클릭으로 크게 보기).</summary>
         public CardInspectOverlay Inspect { get; private set; }
+        /// <summary>대전 시작 코인 토스.</summary>
+        public CoinTossOverlay CoinToss { get; private set; }
 
         /// <summary>컴퓨터가 다음 행동을 고르는 동안 "상대가 생각 중…" 표시.</summary>
         public void SetThinking(bool thinking) => _thinking.text = thinking ? "상대가 생각 중…" : "";

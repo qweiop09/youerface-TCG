@@ -8,8 +8,13 @@ namespace TCG.Core.Data
     {
         // --- 영웅 / 코스트 (미정, 임시값) ---
         public int HeroHealth { get; set; } = 30;
-        /// <summary>첫 턴의 최대 코스트.</summary>
+        /// <summary>선공의 첫 턴 최대 코스트.</summary>
         public int StartingMaxCost { get; set; } = 1;
+        /// <summary>
+        /// 후공의 시작 최대 코스트 (후공 보정, GameDesign §11.3 확정 Q14). 대전 시작부터 이 값이고 후공 첫 턴에도 늘지 않으며,
+        /// 그다음 턴부터 MaxCostGainPerTurn씩 는다.
+        /// </summary>
+        public int SecondPlayerStartingMaxCost { get; set; } = 2;
         /// <summary>턴마다 늘어나는 최대 코스트.</summary>
         public int MaxCostGainPerTurn { get; set; } = 1;
         /// <summary>최대 코스트 상한.</summary>
@@ -21,9 +26,10 @@ namespace TCG.Core.Data
         /// <summary>손패 최대. 초과 드로우 처리는 규칙 엔진 담당.</summary>
         public int HandLimit { get; set; } = 10;
         public int FirstPlayerStartingHand { get; set; } = 3;
+        /// <summary>후공 시작 손패. 선공보다 1장 더 (후공 보정, GameDesign §11.3 확정 Q14).</summary>
         public int SecondPlayerStartingHand { get; set; } = 4;
-        /// <summary>후공에게 보정 카드를 주는가.</summary>
-        public bool SecondPlayerGetsBonusCard { get; set; } = true;
+        /// <summary>후공에게 보정 카드를 주는가. 보정 카드 없음으로 확정(Q14)되어 기본은 끔.</summary>
+        public bool SecondPlayerGetsBonusCard { get; set; } = false;
         /// <summary>덱 소진 시 피로 피해를 주는가.</summary>
         public bool FatigueEnabled { get; set; } = true;
         public int TurnTimeLimitSeconds { get; set; } = 75;

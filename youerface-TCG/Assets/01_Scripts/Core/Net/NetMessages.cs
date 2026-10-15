@@ -9,15 +9,15 @@ namespace TCG.Core.Net
 {
     /// <summary>
     /// 온라인 메시지 (Architecture §6). JSON 한 덩어리 = 메시지 1개, "t"에 종류(클래스 이름에서 Msg 뺀 것).
-    /// 핸드셰이크: Hello → Welcome/Reject → DeckSubmit → DeckAccepted/DeckRejected → AssetRequest·AssetChunk·AssetMissing →
-    /// AssetsReady → MatchStart → Update… (게스트는 CommandMsg). 재접속: Hello(rejoinToken) → Resync.
+    /// 핸드셰이크: Hello → Welcome(코인 약속)/Reject → DeckSubmit(게스트 코인) → DeckAccepted/DeckRejected → AssetRequest·AssetChunk·AssetMissing →
+    /// AssetsReady → MatchStart(방장 코인 공개) → Update… (게스트는 CommandMsg). 재접속: Hello(rejoinToken) → Resync.
     /// </summary>
     public abstract class NetMessage { }
 
     public static class NetProtocol
     {
         /// <summary>메시지 형식 버전. 바꾸면 올린다(맞지 않으면 접속 거절).</summary>
-        public const int Version = 4; // 2: 피해 유형 (M5.5-0), 3: 기물 칸 번호, 4: 카드 사용 이벤트의 고른 대상
+        public const int Version = 5; // 2: 피해 유형 (M5.5-0), 3: 기물 칸 번호, 4: 카드 사용 이벤트의 고른 대상, 5: 코인 토스(양쪽 비밀값)
         /// <summary>에셋 조각 크기(원본 바이트). Relay 패킷 제한은 전송 구현이 따로 처리한다.</summary>
         public const int AssetChunkBytes = 32 * 1024;
     }
@@ -43,10 +43,14 @@ namespace TCG.Core.Net
         public string HostName { get; set; }
         public RoomRules Room { get; set; }
         public RuleConfig Rules { get; set; }
+        /// <summary>방장 코인 비밀값의 해시 (<see cref="CoinToss.Commit"/>). 비밀값은 MatchStart에서 공개.</summary>
+        public string CoinCommit { get; set; }
     }
 
     public sealed class DeckSubmitMsg : NetMessage
     {
+        /// <summary>게스트 코인 비밀값 (<see cref="CoinToss"/>).</summary>
+        public string CoinSecret { get; set; }
         public DeckDefinition Deck { get; set; }
         /// <summary>덱에 든 카드 정의(<see cref="CardSerializer"/> JSON), 한 번씩.</summary>
         public List<string> Cards { get; set; } = new List<string>();
@@ -92,6 +96,8 @@ namespace TCG.Core.Net
     {
         public int Seat { get; set; }
         public string RejoinToken { get; set; }
+        /// <summary>방장 코인 비밀값 공개. 게스트는 Welcome의 해시와 맞는지 확인한다.</summary>
+        public string CoinSecret { get; set; }
     }
 
     public sealed class UpdateMsg : NetMessage

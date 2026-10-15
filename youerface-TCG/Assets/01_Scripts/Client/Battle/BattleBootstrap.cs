@@ -9,6 +9,7 @@ using TCG.Client.UserAssets;
 using TCG.Core.AI;
 using TCG.Core.Commands;
 using TCG.Core.Data;
+using TCG.Core.Events;
 using TCG.Core.Net;
 using TCG.Core.Rules;
 using TCG.Core.State;
@@ -131,7 +132,7 @@ namespace TCG.Client.Battle
             var engine = new GameEngine();
             var ai = new[] { AiPlayers.Create(_bottomAi, _seed, engine), AiPlayers.Create(_topAi, _seed + 1, engine) };
             var state = new GameState(RuleConfig.CreateDefault(), _seed);
-            engine.StartGame(state, deck0, deck1);
+            var startEvents = engine.StartGame(state, deck0, deck1);
             for (int i = 0; i < _previewSteps && state.Phase == GamePhase.InProgress; i++)
             {
                 int mover = state.Decision?.PlayerIndex ?? state.ActivePlayerIndex;
@@ -151,6 +152,8 @@ namespace TCG.Client.Battle
 
             if (!Application.isPlaying)
                 return;
+            if (_previewSteps == 0)
+                PlayCoinToss(startEvents, state);
 
             UiFactory.EnsureEventSystem();
             Board.Hud.CreateEndTurnButton(EndTurn);
@@ -187,6 +190,7 @@ namespace TCG.Client.Battle
             Player.Init(Board);
             PresentationTime.Speed = _speed;
 
+            PlayCoinToss(first.Events, first.After);
             Session = new BattleSession(link, first.After, new GameEngine(), Player);
             Session.OnlineUpdated += OnOnlineUpdate;
             Session.OnlineRejected += reason => Board.Hud.ShowHint(reason);
@@ -201,6 +205,24 @@ namespace TCG.Client.Battle
             input.Availability.Init(Session, input, Board);
             Decisions = _root.gameObject.AddComponent<DecisionPanel>();
             Decisions.Init(Session, Board.Hud.transform);
+        }
+
+        /// <summary>
+        /// 대전 시작 코인 토스 (GameDesign §11.3). 보드는 이미 시작 상태로 그려져 있으므로 상태 변화 없는 묶음으로 재생한다.
+        /// 재생 중에는 입력·컴퓨터 차례가 기다린다(<see cref="PresentationPlayer.IsPlaying"/>).
+        /// </summary>
+        void PlayCoinToss(IReadOnlyList<GameEvent> startEvents, GameState state)
+        {
+            if (startEvents == null)
+                return;
+            for (int i = 0; i < startEvents.Count; i++)
+            {
+                if (startEvents[i] is GameStartedEvent started)
+                {
+                    Player.Enqueue(new GameEvent[] { started }, state.Clone(), state.Clone());
+                    return;
+                }
+            }
         }
 
         void OnOnlineUpdate(SeatUpdate update)

@@ -19,9 +19,9 @@ namespace TCG.Tests.Core
             return deck;
         }
 
-        static GameState Started(int seed, out GameEngine engine, CardDefinition bonus = null)
+        static GameState Started(int seed, out GameEngine engine, CardDefinition bonus = null, RuleConfig rules = null)
         {
-            var state = new GameState(RuleConfig.CreateDefault(), seed);
+            var state = new GameState(rules ?? RuleConfig.CreateDefault(), seed);
             engine = new GameEngine();
             engine.StartGame(state, Deck(30), Deck(30), bonus);
             return state;
@@ -30,8 +30,7 @@ namespace TCG.Tests.Core
         [Test]
         public void StartGame_DealsStartingHandsAndStartsFirstTurn()
         {
-            var bonus = TestCards.Spell("c_coin", 0);
-            var state = Started(7, out _, bonus);
+            var state = Started(7, out _);
             int first = state.ActivePlayerIndex;
             var p1 = state.GetPlayer(first);
             var p2 = state.GetOpponent(first);
@@ -39,13 +38,24 @@ namespace TCG.Tests.Core
             Assert.That(state.Phase, Is.EqualTo(GamePhase.InProgress));
             Assert.That(state.TurnNumber, Is.EqualTo(1));
             Assert.That(p1.Hand.Count, Is.EqualTo(3 + 1), "선공 3장 + 첫 턴 드로우");
-            Assert.That(p2.Hand.Count, Is.EqualTo(4 + 1), "후공 4장 + 보정 카드");
-            Assert.That(p2.Hand.Entities.Any(e => e.Definition.Id == "c_coin"), Is.True);
+            Assert.That(p2.Hand.Count, Is.EqualTo(4), "후공 4장 (보정 카드 없음, Q14)");
             Assert.That(p1.Deck.Count, Is.EqualTo(30 - 4));
             Assert.That(p2.Deck.Count, Is.EqualTo(30 - 4));
             Assert.That(p1.MaxCost, Is.EqualTo(1));
             Assert.That(p1.AvailableCost, Is.EqualTo(1));
-            Assert.That(p2.MaxCost, Is.EqualTo(0));
+            Assert.That(p2.MaxCost, Is.EqualTo(2), "후공은 대전 시작부터 최대 코스트 2");
+            Assert.That(p2.AvailableCost, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void StartGame_BonusCardFlagOn_GivesBonusCard()
+        {
+            var rules = RuleConfig.CreateDefault();
+            rules.SecondPlayerGetsBonusCard = true;
+            var state = Started(7, out _, TestCards.Spell("c_coin", 0), rules);
+            var p2 = state.GetOpponent(state.ActivePlayerIndex);
+            Assert.That(p2.Hand.Count, Is.EqualTo(4 + 1), "후공 4장 + 보정 카드");
+            Assert.That(p2.Hand.Entities.Any(e => e.Definition.Id == "c_coin"), Is.True);
         }
 
         [Test]
@@ -68,7 +78,7 @@ namespace TCG.Tests.Core
             engine.Apply(state, new EndTurnCommand(first));
             Assert.That(state.ActivePlayerIndex, Is.EqualTo(1 - first));
             Assert.That(state.TurnNumber, Is.EqualTo(2));
-            Assert.That(state.ActivePlayer.MaxCost, Is.EqualTo(1));
+            Assert.That(state.ActivePlayer.MaxCost, Is.EqualTo(2), "후공 첫 턴 최대 코스트 2 (후공 보정)");
 
             for (int i = 0; i < 30; i++)
                 engine.Apply(state, new EndTurnCommand(state.ActivePlayerIndex));

@@ -24,6 +24,8 @@ namespace TCG.Core.Net
         /// <summary>방장 덱을 해석할 카드 모음.</summary>
         public CardCatalog Cards { get; set; }
         public int Seed { get; set; }
+        /// <summary>코인 토스 비밀값. null이면 게스트마다 새로 만든다 (테스트에서만 지정).</summary>
+        public string CoinSecret { get; set; }
     }
 
     public enum HostPhase
@@ -59,12 +61,16 @@ namespace TCG.Core.Net
         int _catalogSent;
         bool _sentFirstUpdate;
         string _rejoinToken;
+        string _coinSecret;
+        string _guestCoin;
 
         public HostPhase Phase { get; private set; } = HostPhase.Waiting;
         public string GuestName { get; private set; }
         public DeckDefinition GuestDeck { get; private set; }
         public IReadOnlyList<CardDefinition> GuestCards { get; private set; }
         public HostMatch Match { get; private set; }
+        /// <summary>코인 토스로 정한 선공 자리 (대전 전이면 -1).</summary>
+        public int FirstSeat { get; private set; } = -1;
         /// <summary>방장 화면에 보여 줄 변화 (자리 0).</summary>
         public Queue<SeatUpdate> LocalUpdates { get; } = new Queue<SeatUpdate>();
         /// <summary>마지막으로 알려진 시간·연결 상태.</summary>
@@ -158,6 +164,8 @@ namespace TCG.Core.Net
             GuestDeck = null;
             GuestCards = null;
             _guestReady = false;
+            _coinSecret = null;
+            _guestCoin = null;
             _assets = null;
         }
 
@@ -232,11 +240,24 @@ namespace TCG.Core.Net
             GuestName = string.IsNullOrEmpty(hello.Name) ? "상대" : hello.Name;
             Phase = HostPhase.Handshake;
             Status = GuestName + " 접속, 덱 확인 중";
-            Send(new WelcomeMsg { HostName = _setup.HostName, Room = _setup.Room, Rules = _setup.Rules });
+            _coinSecret = _setup.CoinSecret ?? CoinToss.NewSecret();
+            Send(new WelcomeMsg
+            {
+                HostName = _setup.HostName, Room = _setup.Room, Rules = _setup.Rules,
+                CoinCommit = CoinToss.Commit(_coinSecret),
+            });
         }
 
         void HandleDeck(DeckSubmitMsg submit)
         {
+            if (!CoinToss.IsValidSecret(submit.CoinSecret))
+            {
+                Reject("코인 토스 값이 잘못되었습니다.");
+                ResetHandshake();
+                return;
+            }
+            _guestCoin = submit.CoinSecret;
+
             var issues = new List<string>();
             var catalog = new CardCatalog();
             try
@@ -285,11 +306,12 @@ namespace TCG.Core.Net
 
         void StartMatch()
         {
-            Match = new HostMatch(_setup.Rules, _setup.Seed, _hostCards, GuestCards, _setup.Registry);
+            FirstSeat = CoinToss.FirstSeat(_coinSecret, _guestCoin);
+            Match = new HostMatch(_setup.Rules, _setup.Seed, _hostCards, GuestCards, _setup.Registry, firstPlayer: FirstSeat);
             Match.Updated += OnSeatUpdate;
             Match.ClockChanged += OnClockChanged;
             _rejoinToken = Guid.NewGuid().ToString("N");
-            Send(new MatchStartMsg { Seat = GuestSeat, RejoinToken = _rejoinToken });
+            Send(new MatchStartMsg { Seat = GuestSeat, RejoinToken = _rejoinToken, CoinSecret = _coinSecret });
             Phase = HostPhase.Playing;
             Status = "대전 시작";
             Match.Start();

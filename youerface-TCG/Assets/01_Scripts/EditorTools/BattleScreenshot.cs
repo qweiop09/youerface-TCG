@@ -41,7 +41,7 @@ namespace TCG.EditorTools
             EditorApplication.Exit(exitCode);
         }
 
-        /// <param name="pose">"hover" = 내 손패 첫 카드를 호버 자세로, "target" = 대상 지정 자세로 (화면 확인용).</param>
+        /// <param name="pose">"hover" = 내 손패 첫 카드를 호버 자세로, "target" = 대상 지정 자세로, "coin" = 코인 토스 결과 (화면 확인용).</param>
         public static void Capture(string path, int seed, int steps, int width, int height, string pose = "")
         {
             EditorSceneManager.OpenScene(ProjectSetup.BattleScenePath, OpenSceneMode.Single);
@@ -86,6 +86,13 @@ namespace TCG.EditorTools
 
         static void ApplyPose(TCG.Client.Board.BoardView board, string pose)
         {
+            if (pose == "coin")
+            {
+                // 코인 토스 결과 화면 (steps 0이면 지금 차례 = 선공).
+                var state = UnityEngine.Object.FindAnyObjectByType<BattleBootstrap>().Session.State;
+                board.Hud.CoinToss.ShowStill(state.ActivePlayerIndex == board.Viewer, state.Rules);
+                return;
+            }
             if (pose == "inspect" || pose == "inspecttip")
             {
                 InspectSample(board);

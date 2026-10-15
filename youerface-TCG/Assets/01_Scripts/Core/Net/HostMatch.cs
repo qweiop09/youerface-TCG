@@ -74,6 +74,7 @@ namespace TCG.Core.Net
     {
         readonly IReadOnlyList<CardDefinition>[] _decks;
         readonly CardDefinition _bonusCard;
+        readonly int _firstPlayer;
         int _turnMs, _decisionMs, _disconnectMs;
         int _clockTurn = -1, _clockMover = -1;
         PendingDecision _clockDecision;
@@ -93,9 +94,11 @@ namespace TCG.Core.Net
         /// <summary>연결 상태만 바뀌었을 때.</summary>
         public event Action<MatchClock> ClockChanged;
 
+        /// <param name="firstPlayer">선공 자리 (온라인 코인 토스 결과). -1이면 시드 난수.</param>
         public HostMatch(RuleConfig rules, int seed, IReadOnlyList<CardDefinition> deck0, IReadOnlyList<CardDefinition> deck1,
-            EffectRegistry registry = null, CardDefinition bonusCard = null)
+            EffectRegistry registry = null, CardDefinition bonusCard = null, int firstPlayer = -1)
         {
+            _firstPlayer = firstPlayer;
             State = new GameState(rules ?? RuleConfig.CreateDefault(), seed);
             Engine = new GameEngine(registry);
             _decks = new[] { deck0, deck1 };
@@ -114,7 +117,7 @@ namespace TCG.Core.Net
         public void Start()
         {
             var before = State.Clone();
-            var events = Engine.StartGame(State, _decks[0], _decks[1], _bonusCard);
+            var events = Engine.StartGame(State, _decks[0], _decks[1], _bonusCard, _firstPlayer);
             Publish(before, events, AutoReason.None, -1);
         }
 

@@ -25,15 +25,19 @@ namespace TCG.Core.Rules
 
         /// <summary>
         /// 덱을 만들어 섞고, 선공을 정하고, 시작 손패를 뽑은 뒤 선공의 첫 턴을 시작한다.
-        /// bonusCard: 후공 보정 카드 (RuleConfig.SecondPlayerGetsBonusCard가 켜져 있을 때만). 어떤 카드인지는 미정.
+        /// bonusCard: 후공 보정 카드 (RuleConfig.SecondPlayerGetsBonusCard가 켜져 있을 때만, 기본은 꺼짐 — Q14 보정 카드 없음).
+        /// firstPlayer: 0/1이면 그 자리가 선공 (온라인 코인 토스, <see cref="Net.CoinToss"/>). -1이면 시드 난수로 정한다.
+        /// 어느 쪽이든 난수 1번을 쓰므로 같은 시드면 덱 섞기·드로우는 같다.
         /// </summary>
         public IReadOnlyList<GameEvent> StartGame(GameState state, IReadOnlyList<CardDefinition> deck0,
-            IReadOnlyList<CardDefinition> deck1, CardDefinition bonusCard = null)
+            IReadOnlyList<CardDefinition> deck1, CardDefinition bonusCard = null, int firstPlayer = -1)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
             if (state.Phase != GamePhase.NotStarted)
                 throw new InvalidOperationException("Game already started.");
+            if (firstPlayer < -1 || firstPlayer >= GameState.PlayerCount)
+                throw new ArgumentOutOfRangeException(nameof(firstPlayer));
 
             var ctx = new RuleContext(state, Registry);
             var decks = new[] { deck0 ?? Array.Empty<CardDefinition>(), deck1 ?? Array.Empty<CardDefinition>() };
@@ -48,7 +52,8 @@ namespace TCG.Core.Rules
                     deck.TryAdd(state.CreateEntity(p, order[i]));
             }
 
-            int first = state.Rng.Next(GameState.PlayerCount);
+            int rolled = state.Rng.Next(GameState.PlayerCount);
+            int first = firstPlayer >= 0 ? firstPlayer : rolled;
             int second = 1 - first;
             state.Phase = GamePhase.InProgress;
             state.ActivePlayerIndex = first;
@@ -56,6 +61,12 @@ namespace TCG.Core.Rules
 
             ctx.DrawCards(first, state.Rules.FirstPlayerStartingHand);
             ctx.DrawCards(second, state.Rules.SecondPlayerStartingHand);
+
+            // 후공 보정: 후공은 대전 시작부터 최대 코스트를 가지고 있다 (첫 턴에 늘어나는 것이 아님, GameDesign §11.3).
+            var secondPlayer = state.GetPlayer(second);
+            secondPlayer.MaxCost = Math.Min(state.Rules.SecondPlayerStartingMaxCost, state.Rules.MaxCostLimit);
+            secondPlayer.AvailableCost = secondPlayer.MaxCost;
+            ctx.Emit(new CostChangedEvent(second, secondPlayer.MaxCost, secondPlayer.AvailableCost));
 
             if (state.Rules.SecondPlayerGetsBonusCard && bonusCard != null)
             {
