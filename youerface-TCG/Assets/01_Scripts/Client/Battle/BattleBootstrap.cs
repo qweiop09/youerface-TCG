@@ -154,7 +154,10 @@ namespace TCG.Client.Battle
 
             UiFactory.EnsureEventSystem();
             Board.Hud.CreateEndTurnButton(EndTurn);
-            _root.gameObject.AddComponent<BattleInput>().Init(Session, Board);
+            var input = _root.gameObject.AddComponent<BattleInput>();
+            input.Init(Session, Board);
+            input.Availability = _root.gameObject.AddComponent<AvailabilityGlow>();
+            input.Availability.Init(Session, input, Board);
             Decisions = _root.gameObject.AddComponent<DecisionPanel>();
             Decisions.Init(Session, Board.Hud.transform);
         }
@@ -192,7 +195,10 @@ namespace TCG.Client.Battle
             Board.Hud.CreateEndTurnButton(EndTurn);
             _concede = UiFactory.Button(Board.Hud.transform, "Concede", "항복", new Vector2(1f, 1f), new Vector2(-110, -50),
                 new Vector2(160, 64), new Color(0.35f, 0.22f, 0.22f), Concede, 26f);
-            _root.gameObject.AddComponent<BattleInput>().Init(Session, Board);
+            var input = _root.gameObject.AddComponent<BattleInput>();
+            input.Init(Session, Board);
+            input.Availability = _root.gameObject.AddComponent<AvailabilityGlow>();
+            input.Availability.Init(Session, input, Board);
             Decisions = _root.gameObject.AddComponent<DecisionPanel>();
             Decisions.Init(Session, Board.Hud.transform);
         }

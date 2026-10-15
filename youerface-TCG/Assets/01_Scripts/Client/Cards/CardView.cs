@@ -203,12 +203,17 @@ namespace TCG.Client.Cards
                 _usage.text = Usage.Value.ToString();
         }
 
-        /// <summary>테두리 빛. null이면 끈다.</summary>
-        public void SetGlow(Color? color)
+        /// <summary>기본 테두리 두께 (카드 밖으로 나오는 폭의 합).</summary>
+        public const float DefaultGlowWidth = 0.16f;
+
+        /// <summary>테두리 빛. null이면 끈다. width는 카드 밖으로 나오는 폭(양쪽 합) — 색만으로 구분하지 않게 종류마다 다르게 쓴다.</summary>
+        public void SetGlow(Color? color, float width = DefaultGlowWidth)
         {
             _glow.SetActive(color.HasValue);
-            if (color.HasValue)
-                _glow.GetComponent<Renderer>().sharedMaterial = MaterialCache.Get(color.Value, unlit: true);
+            if (!color.HasValue)
+                return;
+            _glow.GetComponent<Renderer>().sharedMaterial = MaterialCache.Get(color.Value, unlit: true);
+            _glow.transform.localScale = new Vector3(Width + width, 0.02f, Height + width);
         }
     }
 }

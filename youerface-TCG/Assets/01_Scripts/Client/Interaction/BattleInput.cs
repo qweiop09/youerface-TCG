@@ -49,6 +49,12 @@ namespace TCG.Client.Interaction
         /// <summary>끌고 있는 카드 크기 (손패보다 크게, GameDesign §11.2).</summary>
         const float DragScale = 1.5f;
 
+        /// <summary>아무것도 잡거나 조준하지 않은 상태.</summary>
+        public bool IsIdle => _mode == Mode.Idle;
+
+        /// <summary>가능 여부 표시. 대상 표시를 켜기 전에 끈다.</summary>
+        public AvailabilityGlow Availability { get; set; }
+
         public void Init(BattleSession session, BoardView board)
         {
             _session = session;
@@ -373,6 +379,7 @@ namespace TCG.Client.Interaction
 
         void GlowTargets()
         {
+            Availability?.Clear();
             ClearGlow();
             foreach (int id in _validTargets)
             {
