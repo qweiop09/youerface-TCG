@@ -125,6 +125,7 @@ namespace TCG.Core.Rules
             Add(ref h, e.PlayedThisTurn ? 1 : 0);
             Add(ref h, e.AttacksThisTurn);
             Add(ref h, e.SummonKey);
+            Add(ref h, e.Slot);
             Add(ref h, e.Keywords.Count);
             for (int i = 0; i < e.Keywords.Count; i++)
                 Add(ref h, (int)e.Keywords[i]);

@@ -243,17 +243,26 @@ namespace TCG.Client.Board
         const float TargetingDistance = 8f;
         public const float TargetingScale = 0.85f;
 
-        /// <summary>기물을 world X 위치에 놓을 때 들어갈 칸 번호 (왼쪽부터 그보다 왼쪽에 있는 기물 수).</summary>
-        public int MinionInsertIndex(int ownerIndex, float worldX)
+        /// <summary>
+        /// 기물을 world X 위치에 놓을 때 소환할 칸 번호: 놓은 위치에서 가장 가까운 빈 칸 (GameDesign §4.1). 빈 칸이 없으면 null.
+        /// </summary>
+        public int? MinionSlotAt(Zone minions, int ownerIndex, float worldX)
         {
-            var list = _zones[SideOf(ownerIndex)][ZoneType.Minion];
-            int index = 0;
-            foreach (var view in list)
+            bool bottom = SideOf(ownerIndex) == 0;
+            int? best = null;
+            float bestDistance = float.MaxValue;
+            for (int slot = 0; slot < BoardLayout.MinionSlots && slot < minions.Capacity; slot++)
             {
-                if (view.transform.position.x < worldX)
-                    index++;
+                if (!minions.IsSlotFree(slot))
+                    continue;
+                float distance = Mathf.Abs(BoardLayout.Minion(slot, bottom).x - worldX);
+                if (distance < bestDistance)
+                {
+                    best = slot;
+                    bestDistance = distance;
+                }
             }
-            return index;
+            return best;
         }
 
         /// <summary>이 Z보다 위(상대 쪽)에 카드를 놓으면 "보드에 냄"으로 본다.</summary>
@@ -352,7 +361,12 @@ namespace TCG.Client.Board
                     continue;
                 switch (zone)
                 {
-                    case ZoneType.Minion: position = BoardLayout.Minion(i, list.Count, bottom); break;
+                    // 기물은 자기 칸 번호의 칸 표시 위에. 칸 번호를 모르면(옛 상태) 가운데 정렬.
+                    case ZoneType.Minion:
+                        position = view.Slot >= 0 && view.Slot < BoardLayout.MinionSlots
+                            ? BoardLayout.Minion(view.Slot, bottom)
+                            : BoardLayout.Minion(i, list.Count, bottom);
+                        break;
                     case ZoneType.Field: position = BoardLayout.Field(bottom); break;
                     case ZoneType.Companion: position = BoardLayout.Companion(i, bottom); break;
                     case ZoneType.Summon: position = BoardLayout.Summon(i, bottom); break;
@@ -414,7 +428,11 @@ namespace TCG.Client.Board
                 foreach (var z in BoardZones)
                 {
                     foreach (var entity in player.GetZone(z).Entities)
-                        _zones[side][z].Add(Track(entity, true, seen, initial, ref drift));
+                    {
+                        var view = Track(entity, true, seen, initial, ref drift);
+                        view.Slot = entity.Slot;
+                        _zones[side][z].Add(view);
+                    }
                 }
 
                 if (_heroes[side].Refresh(player.Hero))

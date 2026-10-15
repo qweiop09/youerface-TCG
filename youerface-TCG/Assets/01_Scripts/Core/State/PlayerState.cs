@@ -44,7 +44,7 @@ namespace TCG.Core.State
             Deck = new Zone(ZoneType.Deck, Zone.Unlimited);
             Hand = new Zone(ZoneType.Hand, rules.HandLimit);
             Graveyard = new Zone(ZoneType.Graveyard, Zone.Unlimited);
-            Minions = new Zone(ZoneType.Minion, rules.MinionSlots);
+            Minions = new Zone(ZoneType.Minion, rules.MinionSlots, usesSlots: true);
             Field = new Zone(ZoneType.Field, rules.FieldSlots);
             Companions = new Zone(ZoneType.Companion, rules.CompanionSlots);
             Summons = new Zone(ZoneType.Summon, rules.SummonSlots);

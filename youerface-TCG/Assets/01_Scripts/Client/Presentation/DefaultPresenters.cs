@@ -153,6 +153,7 @@ namespace TCG.Client.Presentation
 
             c.Board.Sounds?.PlayEnter(view.Definition);
             c.Board.InsertInZone(view, e.Zone, e.Index);
+            view.Slot = e.Slot;
             c.Board.TargetPose(view, out var pos, out var rot);
             if (created)
                 view.transform.localPosition = pos;

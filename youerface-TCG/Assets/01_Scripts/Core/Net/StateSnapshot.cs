@@ -179,11 +179,13 @@ namespace TCG.Core.Net
         public bool Played { get; set; }
         public int Attacks { get; set; }
         public string SummonKey { get; set; }
+        /// <summary>기물 칸 번호 (그 밖 -1).</summary>
+        public int Slot { get; set; } = -1;
 
         public static EntitySnapshot Capture(Entity e, MatchCatalog catalog)
         {
             if (HiddenCard.Is(e))
-                return new EntitySnapshot { Id = e.Id, Owner = e.OwnerIndex, Def = -1 };
+                return new EntitySnapshot { Id = e.Id, Owner = e.OwnerIndex, Def = -1, Slot = e.Slot };
             return new EntitySnapshot
             {
                 Id = e.Id,
@@ -201,13 +203,14 @@ namespace TCG.Core.Net
                 Played = e.PlayedThisTurn,
                 Attacks = e.AttacksThisTurn,
                 SummonKey = e.SummonKey,
+                Slot = e.Slot,
             };
         }
 
         public Entity ToEntity(IReadOnlyList<CardDefinition> catalog)
         {
             if (Def < 0)
-                return new Entity(Id, Owner, HiddenCard.Definition);
+                return new Entity(Id, Owner, HiddenCard.Definition) { Slot = Slot };
             if (Def >= catalog.Count)
                 throw new FormatException($"Unknown card definition #{Def}.");
             var e = new Entity(Id, Owner, catalog[Def])
@@ -223,6 +226,7 @@ namespace TCG.Core.Net
                 PlayedThisTurn = Played,
                 AttacksThisTurn = Attacks,
                 SummonKey = SummonKey,
+                Slot = Slot,
             };
             e.Keywords.Clear();
             if (Keywords != null)

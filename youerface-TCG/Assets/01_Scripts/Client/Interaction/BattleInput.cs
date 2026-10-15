@@ -49,6 +49,18 @@ namespace TCG.Client.Interaction
         /// <summary>끌고 있는 카드 크기 (손패보다 크게, GameDesign §11.2).</summary>
         const float DragScale = 1.5f;
 
+        /// <summary>
+        /// ESC 우선순위 (GameDesign §11.2): Esc·오른쪽 클릭은 진행 중인 동작(끌기·대상 지정·공격 조준, 카드 확인 창)을 먼저 취소한다.
+        /// 취소한 프레임을 남겨, 나중에 붙는 ESC 메뉴(M5.5-2)는 <see cref="CancelConsumedThisFrame"/>가 false일 때만 열린다.
+        /// </summary>
+        public int CancelConsumedFrame { get; private set; } = -1;
+
+        /// <summary>이번 프레임의 Esc를 취소에 썼는가 (BattleInput 또는 카드 확인 창).</summary>
+        public bool CancelConsumedThisFrame =>
+            CancelConsumedFrame == Time.frameCount || (_board != null && _board.Hud.Inspect.ClosedFrame == Time.frameCount);
+
+        void ConsumeCancel() => CancelConsumedFrame = Time.frameCount;
+
         /// <summary>아무것도 잡거나 조준하지 않은 상태.</summary>
         public bool IsIdle => _mode == Mode.Idle;
 
@@ -100,7 +112,12 @@ namespace TCG.Client.Interaction
                     break;
                 case Mode.Pressing:
                     // 보드 카드: 끌지 않고 떼면 (누른 시간과 상관없이) 카드 확인. 내 기물을 끌면 공격 화살표.
-                    if (released)
+                    if (cancel)
+                    {
+                        ConsumeCancel();
+                        ResetState();
+                    }
+                    else if (released)
                     {
                         var card = _pressed;
                         ResetState();
@@ -114,6 +131,13 @@ namespace TCG.Client.Interaction
                     }
                     break;
                 case Mode.Dragging:
+                    // 끌던 카드는 Esc·오른쪽 클릭으로 손패에 돌려놓는다.
+                    if (cancel)
+                    {
+                        ConsumeCancel();
+                        CancelHeld();
+                        break;
+                    }
                     if (released && !_dragMoved)
                     {
                         var card = _held;
@@ -128,14 +152,20 @@ namespace TCG.Client.Interaction
                 case Mode.Targeting:
                     UpdateArrow(screen);
                     if (cancel)
+                    {
+                        ConsumeCancel();
                         CancelHeld();
+                    }
                     else if (pressed && !PointerOverUi())
                         ChooseTarget(screen);
                     break;
                 case Mode.Aiming:
                     UpdateArrow(screen);
                     if (cancel)
+                    {
+                        ConsumeCancel();
                         ResetState();
+                    }
                     else if (released)
                         FinishAttack(screen);
                     break;
@@ -300,7 +330,10 @@ namespace TCG.Client.Interaction
                 return;
             }
 
-            int? position = entity.Type == CardType.Minion ? _board.MinionInsertIndex(_session.Human, point.x) : (int?)null;
+            // 기물: 놓은 위치에서 가장 가까운 빈 칸에 소환한다 (유희왕처럼 칸을 고름).
+            int? position = entity.Type == CardType.Minion
+                ? _board.MinionSlotAt(_session.State.GetPlayer(_session.Human).Minions, _session.Human, point.x)
+                : null;
             Submit(new PlayCardCommand(_session.Human, entity.Id, null, position));
         }
 

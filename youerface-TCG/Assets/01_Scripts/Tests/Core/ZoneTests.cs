@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using NUnit.Framework;
 using TCG.Core.Data;
 using TCG.Core.State;
@@ -60,17 +61,22 @@ namespace TCG.Tests.Core
         }
 
         [Test]
-        public void Zone_TryInsert_KeepsOrder()
+        public void SlotZone_KeepsSlotOrder_AndCloneKeepsSlots()
         {
             var minions = _state.GetPlayer(0).Minions;
             var a = NewMinion();
             var b = NewMinion();
             var c = NewMinion();
-            minions.TryAdd(a);
-            minions.TryAdd(c);
-            minions.TryInsert(b, 1);
+            Assert.That(minions.TryPlaceAt(a, 0), Is.True);
+            Assert.That(minions.TryPlaceAt(c, 4), Is.True);
+            Assert.That(minions.TryPlaceAt(b, 2), Is.True);
+            Assert.That(minions.TryPlaceAt(NewMinion(), 2), Is.False, "차 있는 칸");
 
             Assert.That(minions.Entities, Is.EqualTo(new[] { a, b, c }));
+            Assert.That(minions.NearestCenterFreeSlot(), Is.EqualTo(1));
+
+            var clone = _state.Clone().GetPlayer(0).Minions;
+            Assert.That(clone.Entities.Select(e => e.Slot), Is.EqualTo(new[] { 0, 2, 4 }));
         }
 
         [Test]

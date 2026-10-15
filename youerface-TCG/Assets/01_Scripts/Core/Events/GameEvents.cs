@@ -89,8 +89,14 @@ namespace TCG.Core.Events
     {
         public int EntityId { get; }
         public ZoneType Zone { get; }
+        /// <summary>영역 목록에서의 순번.</summary>
         public int Index { get; }
-        public CardEnteredEvent(int entityId, ZoneType zone, int index) { EntityId = entityId; Zone = zone; Index = index; }
+        /// <summary>칸 번호 영역(기물)의 칸 번호. 그 밖에는 -1.</summary>
+        public int Slot { get; }
+        public CardEnteredEvent(int entityId, ZoneType zone, int index, int slot = -1)
+        {
+            EntityId = entityId; Zone = zone; Index = index; Slot = slot;
+        }
     }
 
     /// <summary>카드가 보드 영역에서 퇴장.</summary>

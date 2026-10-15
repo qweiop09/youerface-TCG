@@ -51,6 +51,9 @@ namespace TCG.Core.State
         /// <summary>"같은 소환물" 판정용 키. 같은 카드의 같은 효과가 만든 소환물은 같은 키를 가진다.</summary>
         public string SummonKey { get; set; }
 
+        /// <summary>칸 번호가 있는 영역(기물)에서의 칸 번호 (0 = 왼쪽). 그 밖에는 -1. <see cref="Zone"/>이 정한다.</summary>
+        public int Slot { get; set; } = -1;
+
         public Entity(int id, int ownerIndex, CardDefinition definition)
         {
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
@@ -63,7 +66,7 @@ namespace TCG.Core.State
             Keywords = definition.Keywords != null ? new List<Keyword>(definition.Keywords) : new List<Keyword>();
         }
 
-        /// <summary>같은 ID의 복사본 (영역 위치는 복사하지 않음 — 영역에 넣을 때 정해진다).</summary>
+        /// <summary>같은 ID의 복사본. 영역은 복사하지 않지만(영역에 넣을 때 정해진다) 칸 번호는 복사해 같은 칸에 다시 놓이게 한다.</summary>
         public Entity Clone()
         {
             var copy = new Entity(Id, OwnerIndex, Definition)
@@ -79,6 +82,7 @@ namespace TCG.Core.State
                 PlayedThisTurn = PlayedThisTurn,
                 AttacksThisTurn = AttacksThisTurn,
                 SummonKey = SummonKey,
+                Slot = Slot,
             };
             copy.Keywords.Clear();
             copy.Keywords.AddRange(Keywords);

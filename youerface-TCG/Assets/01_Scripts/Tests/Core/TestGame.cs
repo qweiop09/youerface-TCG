@@ -42,11 +42,19 @@ namespace TCG.Tests.Core
         public Entity AddToHand(int player, CardDefinition card) => Add(State.GetPlayer(player).Hand, player, card);
         public Entity AddToDeck(int player, CardDefinition card) => Add(State.GetPlayer(player).Deck, player, card);
 
-        /// <summary>보드에 바로 놓는다 (공격 가능 상태, 등장 시 효과 없음).</summary>
+        /// <summary>보드에 바로 놓는다 (공격 가능 상태, 등장 시 효과 없음). 기물은 가장 왼쪽 빈 칸.</summary>
         public Entity AddToBoard(int player, CardDefinition card)
         {
             var zone = State.GetPlayer(player).GetZone(RuleContext.BoardZoneFor(card.Type));
-            return Add(zone, player, card);
+            if (!zone.UsesSlots)
+                return Add(zone, player, card);
+            // 기물: 테스트에서는 넣은 순서 = 왼쪽부터가 되도록 가장 왼쪽 빈 칸에 놓는다.
+            var e = State.CreateEntity(player, card);
+            int slot = 0;
+            while (slot < zone.Capacity && !zone.IsSlotFree(slot))
+                slot++;
+            Assert.That(zone.TryPlaceAt(e, slot), Is.True, $"{zone.Type} is full");
+            return e;
         }
 
         Entity Add(Zone zone, int player, CardDefinition card)

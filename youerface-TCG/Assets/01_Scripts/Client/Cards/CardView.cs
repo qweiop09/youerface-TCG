@@ -40,6 +40,8 @@ namespace TCG.Client.Cards
         public bool FaceUp { get; private set; }
         /// <summary>플레이어가 집고 있는 중. 배치 연출이 이 카드를 옮기지 않는다.</summary>
         public bool Held { get; set; }
+        /// <summary>기물 칸 번호 (Core <see cref="Entity.Slot"/>와 같음). 칸 위치에 그린다. 그 밖에는 -1.</summary>
+        public int Slot { get; set; } = -1;
 
         // 화면에 보이는 숫자
         public int Cost { get; private set; }

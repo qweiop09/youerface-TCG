@@ -154,8 +154,9 @@ namespace TCG.Core.Rules
                 case CardType.Minion:
                     if (player.Minions.IsFull)
                         return ValidationResult.Fail("기물 칸이 가득 찼습니다.");
-                    if (cmd.Position.HasValue && (cmd.Position.Value < 0 || cmd.Position.Value > player.Minions.Count))
-                        return ValidationResult.Fail("잘못된 위치입니다.");
+                    // 위치 = 칸 번호 (GameDesign §4.1). 비어 있는 칸이어야 한다. 없으면 가운데에 가까운 빈 칸.
+                    if (cmd.Position.HasValue && !player.Minions.IsSlotFree(cmd.Position.Value))
+                        return ValidationResult.Fail("그 칸에는 놓을 수 없습니다.");
                     break;
                 case CardType.Companion:
                     if (player.Companions.IsFull)

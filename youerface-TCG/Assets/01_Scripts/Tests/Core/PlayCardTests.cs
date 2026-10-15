@@ -23,16 +23,63 @@ namespace TCG.Tests.Core
         }
 
         [Test]
-        public void PlayMinion_AtPosition()
+        public void PlayMinion_AtChosenSlot_OthersDoNotMove()
         {
             var g = new TestGame();
-            var a = g.AddToBoard(0, TestCards.Minion());
-            var b = g.AddToBoard(0, TestCards.Minion());
+            var a = g.AddToBoard(0, TestCards.Minion()); // 칸 0
+            var b = g.AddToBoard(0, TestCards.Minion()); // 칸 1
             var card = g.AddToHand(0, TestCards.Minion());
 
-            g.Play(card, position: 1);
+            g.Play(card, position: 3);
 
-            Assert.That(g.P0.Minions.Entities, Is.EqualTo(new[] { a, card, b }));
+            Assert.That(card.Slot, Is.EqualTo(3));
+            Assert.That(new[] { a.Slot, b.Slot }, Is.EqualTo(new[] { 0, 1 }));
+            Assert.That(g.P0.Minions.Entities, Is.EqualTo(new[] { a, b, card }), "목록은 칸 번호 순");
+            Assert.That(g.Events<TCG.Core.Events.CardEnteredEvent>().Single().Slot, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void PlayMinion_OccupiedOrMissingSlot_IsRejected()
+        {
+            var g = new TestGame();
+            g.AddToBoard(0, TestCards.Minion()); // 칸 0
+            var card = g.AddToHand(0, TestCards.Minion());
+
+            Assert.That(g.Validate(new TCG.Core.Commands.PlayCardCommand(0, card.Id, null, 0)).IsValid, Is.False, "차 있는 칸");
+            Assert.That(g.Validate(new TCG.Core.Commands.PlayCardCommand(0, card.Id, null, 5)).IsValid, Is.False, "없는 칸");
+            Assert.That(g.Validate(new TCG.Core.Commands.PlayCardCommand(0, card.Id, null, 4)).IsValid, Is.True);
+        }
+
+        [Test]
+        public void PlayMinion_WithoutSlot_GoesNearestCenter()
+        {
+            var g = new TestGame();
+            var first = g.AddToHand(0, TestCards.Minion());
+            var second = g.AddToHand(0, TestCards.Minion());
+            var third = g.AddToHand(0, TestCards.Minion());
+
+            g.Play(first);
+            g.Play(second);
+            g.Play(third);
+
+            Assert.That(new[] { first.Slot, second.Slot, third.Slot }, Is.EqualTo(new[] { 2, 1, 3 }), "가운데 → 왼쪽 → 오른쪽");
+        }
+
+        [Test]
+        public void DeadMinion_LeavesGap_OthersStay()
+        {
+            var g = new TestGame();
+            var a = g.AddToBoard(0, TestCards.Minion("c_a", 1, 1, 5));
+            var b = g.AddToBoard(0, TestCards.Minion("c_b", 1, 1, 1));
+            var c = g.AddToBoard(0, TestCards.Minion("c_c", 1, 1, 5));
+
+            g.Apply(new TCG.Core.Commands.EndTurnCommand(0));
+            g.Play(g.AddToHand(1, TestCards.Spell("c_bolt", 0,
+                TestCards.Effect(TriggerType.OnEnter, TargetType.Chosen, ActionType.Damage, 1))), target: b.Id);
+
+            Assert.That(b.Slot, Is.EqualTo(-1));
+            Assert.That(new[] { a.Slot, c.Slot }, Is.EqualTo(new[] { 0, 2 }));
+            Assert.That(g.P0.Minions.IsSlotFree(1), Is.True);
         }
 
         [Test]

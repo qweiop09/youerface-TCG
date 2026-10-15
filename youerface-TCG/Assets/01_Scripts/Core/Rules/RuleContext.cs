@@ -238,7 +238,7 @@ namespace TCG.Core.Rules
             }
         }
 
-        /// <summary>보드에 놓고 "등장 시" 발동을 모은다. 영역이 가득 차면 false.</summary>
+        /// <summary>보드에 놓고 "등장 시" 발동을 모은다. 영역이 가득 차면 false. index: 기물은 칸 번호, 그 밖은 목록 순번.</summary>
         public bool TryPlaceOnBoard(Entity e, int? index, int? chosenTargetId)
         {
             var zoneType = BoardZoneFor(e.Type);
@@ -246,9 +246,21 @@ namespace TCG.Core.Rules
             if (zone.IsFull)
                 return false;
 
-            int at = index.HasValue ? Math.Max(0, Math.Min(index.Value, zone.Count)) : zone.Count;
-            zone.TryInsert(e, at);
-            Emit(new CardEnteredEvent(e.Id, zoneType, at));
+            int at;
+            if (zone.UsesSlots)
+            {
+                // 기물: 고른 칸(비어 있을 때) → 아니면 가운데에 가까운 빈 칸. 기존 기물은 밀리지 않는다.
+                e.Slot = -1;
+                if (!(index.HasValue && zone.TryPlaceAt(e, index.Value)) && !zone.TryAdd(e))
+                    return false;
+                at = zone.IndexOf(e);
+            }
+            else
+            {
+                at = index.HasValue ? Math.Max(0, Math.Min(index.Value, zone.Count)) : zone.Count;
+                zone.TryInsert(e, at);
+            }
+            Emit(new CardEnteredEvent(e.Id, zoneType, at, e.Slot));
             CollectTriggers(e, TriggerType.OnEnter, chosenTargetId);
             return true;
         }
