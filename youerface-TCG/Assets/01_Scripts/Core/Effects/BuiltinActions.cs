@@ -76,6 +76,7 @@ namespace TCG.Core.Effects
                 if (e == null || !e.BaseAttack.HasValue)
                     continue;
                 e.BaseAttack += amount;
+                e.RecordChange(StatKind.Attack, amount, context.Source, aura: false);
                 context.Rules.EmitStats(e);
             }
         }
@@ -87,7 +88,10 @@ namespace TCG.Core.Effects
             {
                 var e = context.Rules.FindBoardEntity(targets[i]);
                 if (e != null && e.BaseAttack.HasValue)
+                {
                     e.AuraAttack += amount;
+                    e.RecordChange(StatKind.Attack, amount, context.Source, aura: true);
+                }
             }
         }
     }
@@ -107,6 +111,7 @@ namespace TCG.Core.Effects
                 if (e == null || !e.BaseMaxHealth.HasValue)
                     continue;
                 e.BaseMaxHealth += amount;
+                e.RecordChange(StatKind.Health, amount, context.Source, aura: false);
                 context.Rules.EmitStats(e);
                 if (e.IsDead)
                     context.Rules.RemoveFromBoard(e, Events.ExitReason.Died);
@@ -120,7 +125,10 @@ namespace TCG.Core.Effects
             {
                 var e = context.Rules.FindBoardEntity(targets[i]);
                 if (e != null && e.BaseMaxHealth.HasValue)
+                {
                     e.AuraHealth += amount;
+                    e.RecordChange(StatKind.Health, amount, context.Source, aura: true);
+                }
             }
         }
     }
@@ -194,6 +202,7 @@ namespace TCG.Core.Effects
             for (int i = 0; i < cards.Count; i++)
             {
                 cards[i].BaseCost += amount;
+                cards[i].RecordChange(StatKind.Cost, amount, context.Source, aura: false);
                 context.Rules.EmitStats(cards[i]);
             }
         }
@@ -203,7 +212,10 @@ namespace TCG.Core.Effects
             int amount = context.Effect.Action.Amount ?? 0;
             var cards = Collect(context, targets);
             for (int i = 0; i < cards.Count; i++)
+            {
                 cards[i].AuraCost += amount;
+                cards[i].RecordChange(StatKind.Cost, amount, context.Source, aura: true);
+            }
         }
 
         static List<Entity> Collect(EffectContext context, IReadOnlyList<int> targets)

@@ -51,6 +51,31 @@ namespace TCG.Core.State
         /// <summary>"같은 소환물" 판정용 키. 같은 카드의 같은 효과가 만든 소환물은 같은 키를 가진다.</summary>
         public string SummonKey { get; set; }
 
+        /// <summary>능력치 변화 기록 (출처별 합계, 표시용 — <see cref="StatChange"/>). 순서 = 처음 기록된 순.</summary>
+        public List<StatChange> Changes { get; } = new List<StatChange>();
+
+        /// <summary>능력치 변화를 기록한다. 같은 능력치·출처·종류(영구/상시)면 합친다. 합이 0이 되면 지운다.</summary>
+        public void RecordChange(StatKind stat, int amount, Entity source, bool aura)
+        {
+            if (amount == 0)
+                return;
+            int sourceId = source?.Id ?? 0;
+            for (int i = 0; i < Changes.Count; i++)
+            {
+                var c = Changes[i];
+                if (c.Stat != stat || c.SourceId != sourceId || c.Aura != aura)
+                    continue;
+                c.Amount += amount;
+                if (c.Amount == 0)
+                    Changes.RemoveAt(i);
+                return;
+            }
+            Changes.Add(new StatChange { Stat = stat, Amount = amount, SourceId = sourceId, SourceName = source?.Definition.Name, Aura = aura });
+        }
+
+        /// <summary>상시 효과 기록을 지운다 (상시 보정을 다시 계산할 때).</summary>
+        public void ClearAuraChanges() => Changes.RemoveAll(c => c.Aura);
+
         /// <summary>칸 번호가 있는 영역(기물)에서의 칸 번호 (0 = 왼쪽). 그 밖에는 -1. <see cref="Zone"/>이 정한다.</summary>
         public int Slot { get; set; } = -1;
 
@@ -86,6 +111,8 @@ namespace TCG.Core.State
             };
             copy.Keywords.Clear();
             copy.Keywords.AddRange(Keywords);
+            for (int i = 0; i < Changes.Count; i++)
+                copy.Changes.Add(Changes[i].Clone());
             return copy;
         }
 

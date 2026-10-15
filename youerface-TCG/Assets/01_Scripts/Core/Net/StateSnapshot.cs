@@ -181,6 +181,8 @@ namespace TCG.Core.Net
         public string SummonKey { get; set; }
         /// <summary>기물 칸 번호 (그 밖 -1).</summary>
         public int Slot { get; set; } = -1;
+        /// <summary>능력치 변화 기록 (표시용).</summary>
+        public List<StatChange> Changes { get; set; }
 
         public static EntitySnapshot Capture(Entity e, MatchCatalog catalog)
         {
@@ -204,6 +206,7 @@ namespace TCG.Core.Net
                 Attacks = e.AttacksThisTurn,
                 SummonKey = e.SummonKey,
                 Slot = e.Slot,
+                Changes = e.Changes.Count > 0 ? e.Changes.ConvertAll(c => c.Clone()) : null,
             };
         }
 
@@ -231,6 +234,8 @@ namespace TCG.Core.Net
             e.Keywords.Clear();
             if (Keywords != null)
                 e.Keywords.AddRange(Keywords);
+            if (Changes != null)
+                e.Changes.AddRange(Changes.ConvertAll(c => c.Clone()));
             return e;
         }
     }

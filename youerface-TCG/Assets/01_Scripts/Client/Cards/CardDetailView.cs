@@ -118,21 +118,28 @@ namespace TCG.Client.Cards
 
             _costBadge.SetActive(def.Type != CardType.Summon);
             _cost.text = entity.Cost.ToString();
+            // 수치 변화 색 (보드 카드와 같은 규칙): 코스트는 내리면 초록, 오르면 경고색.
+            _cost.color = entity.Cost < def.Cost ? CardPalette.BetterLight : entity.Cost > def.Cost ? CardPalette.Worse : CardPalette.NumberLight;
 
             bool stats = entity.Attack.HasValue && entity.Health.HasValue;
             _attackBadge.SetActive(stats);
             _healthBadge.SetActive(stats);
             if (stats)
             {
+                int baseAttack = def.Attack ?? 0, baseHealth = def.Health ?? 0;
                 _attack.text = entity.Attack.Value.ToString();
-                _attack.color = CardPalette.NumberDark;
+                _attack.color = entity.Attack.Value > baseAttack ? CardPalette.BetterDark
+                    : entity.Attack.Value < baseAttack ? CardPalette.WorseDark : CardPalette.NumberDark;
                 _health.text = entity.Health.Value.ToString();
+                _health.color = entity.Health.Value < entity.MaxHealth || entity.MaxHealth < baseHealth ? CardPalette.Worse
+                    : entity.MaxHealth > baseHealth ? CardPalette.BetterLight : CardPalette.NumberLight;
             }
             _usageBadge.SetActive(!stats && entity.Usage.HasValue);
             if (entity.Usage.HasValue)
                 _usage.text = entity.Usage.Value.ToString();
 
             _body.text = BodyText(entity);
+            BuildDeltas(entity);
             BuildSide(entity);
         }
 
@@ -206,6 +213,93 @@ namespace TCG.Client.Cards
                 }
             }
         }
+
+        // ------------------------------------------------------------------ 능력치 변화 (숫자 원 옆)
+
+        RectTransform _deltaRoot;
+
+        /// <summary>
+        /// 능력치가 원래와 다르면 숫자 원 오른쪽에 증감(예: "+2")을 붙이고(카드 밖으로 나와도 됨), 마우스를 올리면
+        /// "원래 → 지금"과 출처 카드별 증감(영구/상시)·받은 피해를 보여 준다 (GameDesign §11.1 수치 변화).
+        /// </summary>
+        void BuildDeltas(Entity entity)
+        {
+            if (_deltaRoot != null)
+                Destroy(_deltaRoot.gameObject);
+            _deltaRoot = UiFactory.Stretch(transform, "StatDeltas");
+            var def = entity.Definition;
+            if (entity.Attack.HasValue && def.Attack.HasValue)
+                Delta(entity, StatKind.Attack, "공격력", def.Attack.Value, entity.Attack.Value, 0, new Vector2(0f, 0f), new Vector2(DeltaOffsetX + 40, 38));
+            if (entity.Health.HasValue && def.Health.HasValue)
+                Delta(entity, StatKind.Health, "체력", def.Health.Value, entity.Health.Value, entity.Damage, new Vector2(1f, 0f), new Vector2(DeltaOffsetX - 40, 38));
+            if (def.Type != CardType.Summon)
+                Delta(entity, StatKind.Cost, "코스트", def.Cost, entity.Cost, 0, new Vector2(0f, 1f), new Vector2(DeltaOffsetX + 40, -40));
+        }
+
+        void Delta(Entity entity, StatKind stat, string label, int original, int current, int damage, Vector2 anchor, Vector2 position)
+        {
+            var lines = new StringBuilder();
+            foreach (var change in entity.Changes)
+            {
+                if (change.Stat != stat)
+                    continue;
+                string who = change.SourceId == entity.Id ? "자신의 효과" : change.SourceName ?? "알 수 없음";
+                lines.Append('\n').Append(Signed(change.Amount)).Append("  ").Append(who);
+                if (change.Aura)
+                    lines.Append(" <color=#9FB4C8>(상시)</color>");
+            }
+            if (damage > 0)
+                lines.Append('\n').Append('-').Append(damage).Append("  받은 피해");
+            if (lines.Length == 0 && original == current)
+                return;
+
+            int delta = current - original;
+            // 코스트는 낮아지는 쪽이 좋다.
+            bool better = stat == StatKind.Cost ? delta < 0 : delta > 0;
+            var color = delta == 0 ? Color.white : better ? new Color(0.55f, 0.88f, 0.48f) : new Color(1f, 0.7f, 0.28f);
+
+            var pill = UiFactory.Panel(_deltaRoot, label + "Delta", anchor, position, new Vector2(72, 40), new Color(0.08f, 0.09f, 0.11f, 0.9f));
+            var text = UiFactory.Text(pill.transform, "Value", delta == 0 ? "±0" : Signed(delta), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(72, 40), 26);
+            text.fontStyle = FontStyles.Bold;
+            text.color = color;
+
+            // 툴팁: 원 옆 수치에 마우스를 올리면 보인다.
+            var tip = UiFactory.Panel(pill.transform, "Tip", new Vector2(0.5f, 1f), new Vector2(0, 8), new Vector2(TipWidth, 40), new Color(0.1f, 0.11f, 0.14f, 0.96f));
+            tip.raycastTarget = false;
+            tip.rectTransform.pivot = new Vector2(0.5f, 0f);
+            var pad = tip.gameObject.AddComponent<VerticalLayoutGroup>();
+            pad.padding = new RectOffset(14, 14, 8, 8);
+            pad.childControlWidth = true;
+            pad.childControlHeight = true;
+            pad.childForceExpandHeight = false;
+            tip.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            string colorHex = "#" + ColorUtility.ToHtmlStringRGB(color);
+            var body = UiFactory.Text(tip.transform, "Text", $"<b>{label}</b> {original} → <color={colorHex}><b>{current}</b></color>{lines}",
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(TipWidth - 28, 30), 20, TextAlignmentOptions.TopLeft);
+            body.textWrappingMode = TextWrappingModes.Normal;
+            tip.gameObject.SetActive(false);
+
+            var trigger = pill.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            AddTrigger(trigger, UnityEngine.EventSystems.EventTriggerType.PointerEnter, () =>
+            {
+                tip.gameObject.SetActive(true);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(tip.rectTransform);
+            });
+            AddTrigger(trigger, UnityEngine.EventSystems.EventTriggerType.PointerExit, () => tip.gameObject.SetActive(false));
+        }
+
+        const float TipWidth = 280f;
+        /// <summary>숫자 원 가운데에서 증감 수치 가운데까지 (원 반지름 37 + 틈 6 + 수치 반폭 36). 항상 원의 오른쪽.</summary>
+        const float DeltaOffsetX = 79f;
+
+        static void AddTrigger(UnityEngine.EventSystems.EventTrigger trigger, UnityEngine.EventSystems.EventTriggerType type, System.Action action)
+        {
+            var entry = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = type };
+            entry.callback.AddListener(_ => action());
+            trigger.triggers.Add(entry);
+        }
+
+        static string Signed(int value) => value > 0 ? "+" + value : value.ToString();
 
         /// <summary>키워드 설명 1줄 창. 폭과 좌우 여백은 모든 창이 같다.</summary>
         void Note(string text)

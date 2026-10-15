@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TCG.Client.Common;
 using TCG.Client.UserAssets;
 using TCG.Core.Data;
@@ -29,6 +30,7 @@ namespace TCG.Client.Cards
         const float Top = Thickness * 0.5f + 0.002f;
 
         TextMeshPro _cost, _attack, _health, _usage;
+        GameObject _statusRoot;
         GameObject _faceRoot, _backRoot, _attackBadge, _healthBadge, _usageBadge, _costBadge, _glow;
         Renderer _body;
         CardDefinition _definition;
@@ -113,7 +115,89 @@ namespace TCG.Client.Cards
             _health = Badge(face, "Health", new Vector3(0.4f, 0, -0.6f), CardPalette.HealthBadge, out _healthBadge);
             _usage = Badge(face, "Usage", new Vector3(0.4f, 0, -0.6f), CardPalette.UsageBadge, out _usageBadge);
 
+            BuildStatusIcons(face, entity);
             SetNumbersFrom(entity);
+        }
+
+        // ------------------------------------------------------------------ 보드 상태 아이콘 (GameDesign §11.1)
+
+        const float IconX = 0.42f;
+        const float IconTopZ = 0.42f;
+        const float IconStep = 0.36f;
+        const float IconRadius = 0.17f;
+        const int MaxIcons = 3;
+
+        /// <summary>
+        /// 카드 오른쪽 위에 세로로: 키워드(도발·은신·보물상자) → 발동 예정 효과(턴·퇴장·피해·공격·카드 사용·상시).
+        /// 글자를 넣어 색만으로 구분하지 않는다. 보드 위에서만 보인다(<see cref="ShowStatus"/>).
+        /// </summary>
+        void BuildStatusIcons(Transform face, Entity entity)
+        {
+            _statusRoot = new GameObject("Status");
+            _statusRoot.transform.SetParent(face, false);
+            var icons = new List<(string text, Color color)>();
+            foreach (var keyword in entity.Keywords)
+            {
+                string mark = KeywordMark(keyword);
+                if (mark != null)
+                    icons.Add((mark, CardPalette.KeywordIcon));
+            }
+            if (_definition.Effects != null)
+            {
+                foreach (var effect in _definition.Effects)
+                {
+                    string mark = effect?.Trigger != null ? TriggerMark(effect.Trigger.Type) : null;
+                    if (mark != null && !icons.Exists(i => i.text == mark))
+                        icons.Add((mark, CardPalette.TriggerIcon));
+                }
+            }
+            for (int i = 0; i < icons.Count && i < MaxIcons; i++)
+            {
+                var icon = new GameObject("Icon " + icons[i].text);
+                icon.transform.SetParent(_statusRoot.transform, false);
+                icon.transform.localPosition = new Vector3(IconX, 0, IconTopZ - i * IconStep);
+                Shapes.Disc(icon.transform, "Disc", new Vector3(0, Top + 0.01f, 0), IconRadius, 0.015f, icons[i].color);
+                Shapes.Bold(Shapes.Label(icon.transform, "Mark", icons[i].text, new Vector3(0, Top + 0.022f, 0), 1.6f, Color.white, 0.32f, 0.28f));
+            }
+            _statusRoot.SetActive(false);
+        }
+
+        static string KeywordMark(Keyword keyword)
+        {
+            switch (keyword)
+            {
+                case Keyword.Taunt: return "도";
+                case Keyword.Stealth: return "은";
+                case Keyword.TreasureChest: return "보";
+                default: return null; // 선봉·일회성은 한 번 쓰고 끝나므로 표시하지 않는다
+            }
+        }
+
+        static string TriggerMark(TriggerType trigger)
+        {
+            switch (trigger)
+            {
+                case TriggerType.OnTurnStart:
+                case TriggerType.OnTurnEnd: return "턴";
+                case TriggerType.OnExit: return "퇴";
+                case TriggerType.OnEffectDamageTaken:
+                case TriggerType.OnCombatDamageTaken:
+                case TriggerType.OnAnyDamageTaken:
+                case TriggerType.OnEffectDamageDealt:
+                case TriggerType.OnCombatDamageDealt:
+                case TriggerType.OnAnyDamageDealt: return "피";
+                case TriggerType.OnAttack: return "공";
+                case TriggerType.OnCardPlayed: return "사";
+                case TriggerType.Aura: return "상";
+                default: return null; // 등장 시는 이미 지나간 효과
+            }
+        }
+
+        /// <summary>상태 아이콘 보이기 (보드 위 카드만).</summary>
+        public void ShowStatus(bool show)
+        {
+            if (_statusRoot != null && _statusRoot.activeSelf != show)
+                _statusRoot.SetActive(show);
         }
 
         static TextMeshPro Badge(Transform parent, string name, Vector3 pos, Color color, out GameObject badge)
@@ -193,10 +277,13 @@ namespace TCG.Client.Cards
             if (hasStats)
             {
                 _attack.text = Attack.Value.ToString();
-                _attack.color = Attack.Value > (_definition.Attack ?? 0) ? CardPalette.BetterDark : CardPalette.NumberDark;
+                // 수치 변화 색 (GameDesign §11.1): 원래보다 오르면 초록, 내려가거나 피해를 입으면 경고색.
+                int baseAttack = _definition.Attack ?? 0, baseHealth = _definition.Health ?? 0;
+                _attack.color = Attack.Value > baseAttack ? CardPalette.BetterDark
+                    : Attack.Value < baseAttack ? CardPalette.WorseDark : CardPalette.NumberDark;
                 _health.text = Health.Value.ToString();
-                _health.color = Health.Value < MaxHealth.Value ? CardPalette.Worse
-                    : MaxHealth.Value > (_definition.Health ?? 0) ? CardPalette.BetterLight : CardPalette.NumberLight;
+                _health.color = Health.Value < MaxHealth.Value || MaxHealth.Value < baseHealth ? CardPalette.Worse
+                    : MaxHealth.Value > baseHealth ? CardPalette.BetterLight : CardPalette.NumberLight;
             }
 
             bool hasUsage = Usage.HasValue && !hasStats;

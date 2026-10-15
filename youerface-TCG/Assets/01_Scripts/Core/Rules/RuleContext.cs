@@ -715,6 +715,7 @@ namespace TCG.Core.Rules
                 all[i].AuraAttack = 0;
                 all[i].AuraHealth = 0;
                 all[i].AuraCost = 0;
+                all[i].ClearAuraChanges();
             }
 
             var effects = new List<EffectDefinition>();

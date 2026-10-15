@@ -86,9 +86,20 @@ namespace TCG.EditorTools
 
         static void ApplyPose(TCG.Client.Board.BoardView board, string pose)
         {
-            if (pose == "inspect")
+            if (pose == "inspect" || pose == "inspecttip")
             {
                 InspectSample(board);
+                // inspecttip: 능력치 변화 툴팁을 펼친 모습도 확인한다.
+                if (pose == "inspecttip")
+                {
+                    foreach (var t in board.Hud.Inspect.GetComponentsInChildren<Transform>(true))
+                    {
+                        if (t.name == "Tip")
+                            t.gameObject.SetActive(true);
+                    }
+                    for (int i = 0; i < 3; i++)
+                        UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)board.Hud.Inspect.transform);
+                }
                 return;
             }
             var card = pose == "hover" ? board.BottomHandCard(1) ?? board.BottomHandCard(0) : board.BottomHandCard(0);
@@ -121,7 +132,7 @@ namespace TCG.EditorTools
         }
 
         /// <summary>
-        /// 카드 확인 창을 바로 띄운다: 양쪽 손패·덱·보드에서 소환물을 만드는 카드 → 키워드 + 효과 여러 개 → 키워드 카드 순으로 고른다.
+        /// 카드 확인 창을 바로 띄운다: 양쪽 손패·덱·보드에서 능력치가 바뀐 카드 → 소환물을 만드는 카드 → 키워드 + 효과 여러 개 → 키워드 카드 순으로 고른다.
         /// </summary>
         static void InspectSample(TCG.Client.Board.BoardView board)
         {
@@ -129,6 +140,7 @@ namespace TCG.EditorTools
             TCG.Core.State.Entity pick = null;
             int Rank(TCG.Core.State.Entity e)
             {
+                if (e.Changes.Count > 0 || e.Damage > 0) return 4; // 능력치 변화가 있는 카드 우선
                 var effects = e.Definition.Effects;
                 if (effects != null && effects.Exists(x => x?.Action?.Type == TCG.Core.Data.ActionType.CreateSummon)) return 3;
                 if (e.Keywords.Count > 0 && effects != null && effects.Count > 1) return 2;

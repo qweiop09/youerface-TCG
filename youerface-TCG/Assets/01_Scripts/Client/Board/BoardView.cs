@@ -350,6 +350,7 @@ namespace TCG.Client.Board
             {
                 BoardLayout.Hand(handIndex, _hands[side].Count, bottom, out position, out rotation);
                 position.x += HandSpread(view, side);
+                view.ShowStatus(false);
                 return true;
             }
 
@@ -371,6 +372,7 @@ namespace TCG.Client.Board
                     case ZoneType.Companion: position = BoardLayout.Companion(i, bottom); break;
                     case ZoneType.Summon: position = BoardLayout.Summon(i, bottom); break;
                 }
+                view.ShowStatus(true);
                 return true;
             }
             return false;

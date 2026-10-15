@@ -26,6 +26,11 @@ namespace TCG.Client.Cards
         public static readonly Color Worse = new Color(1f, 0.78f, 0.25f);
         /// <summary>강화됨 (빨간·파란 원 위).</summary>
         public static readonly Color BetterLight = new Color(0.62f, 1f, 0.55f);
+        /// <summary>약해짐 (노란 원 위: 공격력이 원래보다 낮음).</summary>
+        public static readonly Color WorseDark = new Color(0.62f, 0.06f, 0.04f);
+        /// <summary>보드 상태 아이콘 원판: 키워드 / 발동 예정 효과.</summary>
+        public static readonly Color KeywordIcon = new Color(0.22f, 0.3f, 0.55f);
+        public static readonly Color TriggerIcon = new Color(0.62f, 0.3f, 0.08f);
         /// <summary>강화됨 (노란 원 위).</summary>
         public static readonly Color BetterDark = new Color(0f, 0.42f, 0.08f);
 
