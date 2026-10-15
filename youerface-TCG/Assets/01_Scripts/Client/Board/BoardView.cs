@@ -141,6 +141,108 @@ namespace TCG.Client.Board
             rotation = Quaternion.LookRotation(Camera.transform.up, -Camera.transform.forward);
         }
 
+        /// <summary>
+        /// 대상 지정 중 사용한 카드를 둘 자리: 화면 왼쪽 아래 빈 곳, 카메라를 향해 작게 (보드·대상을 가리지 않게, GameDesign §11.2).
+        /// </summary>
+        public void TargetingPose(out Vector3 position, out Quaternion rotation)
+        {
+            position = Camera.ViewportToWorldPoint(new Vector3(TargetingViewport.x, TargetingViewport.y, TargetingDistance));
+            rotation = Quaternion.LookRotation(Camera.transform.up, -Camera.transform.forward);
+        }
+
+        // ------------------------------------------------------------------ 손패 호버 (GameDesign §11.2)
+        // 슬레이 더 스파이어·하스스톤처럼: 올린 카드는 제자리에서 부채꼴 기울기를 펴고 위로 올라오며 조금 커진다.
+        // 양옆 카드는 살짝 비켜난다. 호버 중과 끝난 직후에는 내 손패 전체가 매 프레임 목표 자세로 부드럽게 따라간다.
+
+        /// <summary>마우스를 올린 내 손패 카드. null이면 없음.</summary>
+        public CardView HoveredHandCard { get; set; }
+        /// <summary>이 시각(unscaled)까지 내 손패를 매 프레임 따라가게 한다. 입력이 호버 중 계속 늘린다.</summary>
+        public float HandFollowUntil { get; set; }
+
+        public const float HoverScale = 1.45f;
+        /// <summary>올라오는 거리 (카드 면 위쪽 방향).</summary>
+        const float HoverLift = 0.95f;
+        /// <summary>앞으로(위로) 띄워 옆 카드 위에 그려지게.</summary>
+        const float HoverRaise = 0.35f;
+        /// <summary>양옆 카드가 비켜나는 거리.</summary>
+        const float HoverSpread = 0.4f;
+        const float HandFollowSpeed = 16f;
+
+        /// <summary>호버한 손패 카드의 자세와 크기.</summary>
+        public void HoverPose(CardView view, out Vector3 position, out Quaternion rotation, out float scale)
+        {
+            int side = SideOf(view.OwnerIndex);
+            int index = Mathf.Max(0, _hands[side].IndexOf(view));
+            BoardLayout.Hand(index, _hands[side].Count, side == 0, out var rest, out _);
+            rotation = Quaternion.Euler(-35f, 0f, 0f); // 부채꼴 기울기 없이 똑바로
+            position = new Vector3(rest.x, rest.y + HoverRaise, rest.z) + rotation * Vector3.forward * HoverLift;
+            scale = HoverScale;
+        }
+
+        /// <summary>
+        /// 화면 좌표가 이 손패 카드의 제자리(손패에 놓인 자세) 안인가. 호버로 카드가 올라가도 원래 자리에 커서가 있으면
+        /// 호버를 유지해서, 카드가 내려왔다 올라갔다 떨리지 않게 한다.
+        /// </summary>
+        public bool RestContains(CardView view, Vector2 screen)
+        {
+            if (!TargetPose(view, out var pos, out var rot))
+                return false;
+            float w = CardView.Width * 0.5f, h = CardView.Height * 0.5f;
+            var a = (Vector2)Camera.WorldToScreenPoint(pos + rot * new Vector3(-w, 0, -h));
+            var b = (Vector2)Camera.WorldToScreenPoint(pos + rot * new Vector3(w, 0, -h));
+            var c = (Vector2)Camera.WorldToScreenPoint(pos + rot * new Vector3(w, 0, h));
+            var d = (Vector2)Camera.WorldToScreenPoint(pos + rot * new Vector3(-w, 0, h));
+            return InTriangle(screen, a, b, c) || InTriangle(screen, a, c, d);
+        }
+
+        static bool InTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+        {
+            float d1 = Cross(p, a, b), d2 = Cross(p, b, c), d3 = Cross(p, c, a);
+            bool neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+            return !(neg && pos);
+        }
+
+        static float Cross(Vector2 p, Vector2 a, Vector2 b) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+
+        /// <summary>호버 중 옆 카드가 비켜나는 X 거리 (호버 카드 왼쪽은 -, 오른쪽은 +).</summary>
+        float HandSpread(CardView view, int side)
+        {
+            var hovered = HoveredHandCard;
+            if (hovered == null || hovered == view || side != 0)
+                return 0f;
+            int h = _hands[0].IndexOf(hovered), i = _hands[0].IndexOf(view);
+            if (h < 0 || i < 0)
+                return 0f;
+            return i < h ? -HoverSpread : HoverSpread;
+        }
+
+        void Update()
+        {
+            if (Time.unscaledTime > HandFollowUntil)
+                return;
+            float k = 1f - Mathf.Exp(-Time.unscaledDeltaTime * HandFollowSpeed);
+            foreach (var view in _hands[0])
+            {
+                if (view == null || view.Held)
+                    continue;
+                Vector3 pos;
+                Quaternion rot;
+                float scale = 1f;
+                if (view == HoveredHandCard)
+                    HoverPose(view, out pos, out rot, out scale);
+                else if (!TargetPose(view, out pos, out rot))
+                    continue;
+                var t = view.transform;
+                t.position = Vector3.Lerp(t.position, pos, k);
+                t.rotation = Quaternion.Slerp(t.rotation, rot, k);
+                t.localScale = Vector3.Lerp(t.localScale, Vector3.one * scale, k);
+            }
+        }
+
+        static readonly Vector2 TargetingViewport = new Vector2(0.09f, 0.25f);
+        const float TargetingDistance = 8f;
+        public const float TargetingScale = 0.85f;
+
         /// <summary>기물을 world X 위치에 놓을 때 들어갈 칸 번호 (왼쪽부터 그보다 왼쪽에 있는 기물 수).</summary>
         public int MinionInsertIndex(int ownerIndex, float worldX)
         {
@@ -219,6 +321,9 @@ namespace TCG.Client.Board
             list.Insert(Mathf.Clamp(index, 0, list.Count), view);
         }
 
+        /// <summary>화면 쪽(나) 손패에서 index번째 카드. 없으면 null.</summary>
+        public CardView BottomHandCard(int index) => index >= 0 && index < _hands[0].Count ? _hands[0][index] : null;
+
         public bool IsInHand(CardView view) => _hands[SideOf(view.OwnerIndex)].Contains(view);
 
         // ------------------------------------------------------------------ 배치
@@ -235,6 +340,7 @@ namespace TCG.Client.Board
             if (handIndex >= 0)
             {
                 BoardLayout.Hand(handIndex, _hands[side].Count, bottom, out position, out rotation);
+                position.x += HandSpread(view, side);
                 return true;
             }
 

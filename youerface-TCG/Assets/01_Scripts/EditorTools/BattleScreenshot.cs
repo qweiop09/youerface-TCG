@@ -31,7 +31,7 @@ namespace TCG.EditorTools
             {
                 string path = Arg("-screenshot", "Logs/battle.png");
                 Capture(path, int.Parse(Arg("-seed", "2026")), int.Parse(Arg("-steps", "45")),
-                    int.Parse(Arg("-width", "1920")), int.Parse(Arg("-height", "1080")));
+                    int.Parse(Arg("-width", "1920")), int.Parse(Arg("-height", "1080")), Arg("-pose", ""));
             }
             catch (Exception e)
             {
@@ -41,7 +41,8 @@ namespace TCG.EditorTools
             EditorApplication.Exit(exitCode);
         }
 
-        public static void Capture(string path, int seed, int steps, int width, int height)
+        /// <param name="pose">"hover" = 내 손패 첫 카드를 호버 자세로, "target" = 대상 지정 자세로 (화면 확인용).</param>
+        public static void Capture(string path, int seed, int steps, int width, int height, string pose = "")
         {
             EditorSceneManager.OpenScene(ProjectSetup.BattleScenePath, OpenSceneMode.Single);
             var bootstrap = UnityEngine.Object.FindAnyObjectByType<BattleBootstrap>();
@@ -50,6 +51,8 @@ namespace TCG.EditorTools
             Canvas.ForceUpdateCanvases();
 
             var camera = Camera.main;
+            camera.aspect = (float)width / height;
+            ApplyPose(bootstrap.Board, pose);
             var rt = new RenderTexture(width, height, 24) { antiAliasing = 4 };
             var previousTarget = camera.targetTexture;
             camera.targetTexture = rt;
@@ -79,6 +82,37 @@ namespace TCG.EditorTools
             UnityEngine.Object.DestroyImmediate(image);
             rt.Release();
             Debug.Log($"[Screenshot] Saved {Path.GetFullPath(path)}");
+        }
+
+        static void ApplyPose(TCG.Client.Board.BoardView board, string pose)
+        {
+            var card = pose == "hover" ? board.BottomHandCard(1) ?? board.BottomHandCard(0) : board.BottomHandCard(0);
+            if (card == null || string.IsNullOrEmpty(pose))
+                return;
+            Vector3 position;
+            Quaternion rotation;
+            float scale = 1f;
+            if (pose == "hover")
+            {
+                board.HoveredHandCard = card;
+                board.HoverPose(card, out position, out rotation, out scale);
+                // 옆 카드가 비켜난 자리도 바로 보여 준다.
+                for (int i = 0; board.BottomHandCard(i) != null; i++)
+                {
+                    var other = board.BottomHandCard(i);
+                    if (other != card && board.TargetPose(other, out var p, out var r))
+                        other.transform.SetPositionAndRotation(p, r);
+                }
+            }
+            else if (pose == "target")
+            {
+                board.TargetingPose(out position, out rotation);
+                scale = TCG.Client.Board.BoardView.TargetingScale;
+            }
+            else
+                return;
+            card.transform.SetPositionAndRotation(position, rotation);
+            card.transform.localScale = Vector3.one * scale;
         }
 
         static string Arg(string name, string fallback)

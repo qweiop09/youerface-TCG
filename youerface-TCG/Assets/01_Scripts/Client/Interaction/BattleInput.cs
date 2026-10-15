@@ -44,6 +44,10 @@ namespace TCG.Client.Interaction
         bool _dragMoved;
         readonly List<CardView> _glowing = new List<CardView>();
         readonly List<int> _validTargets = new List<int>();
+        /// <summary>마우스를 올려 튀어나와 있는 내 손패 카드 (Held로 배치에서 빼 둔다).</summary>
+        CardView _hovered;
+        /// <summary>끌고 있는 카드 크기 (손패보다 크게, GameDesign §11.2).</summary>
+        const float DragScale = 1.5f;
 
         public void Init(BattleSession session, BoardView board)
         {
@@ -69,7 +73,10 @@ namespace TCG.Client.Interaction
             // 카드 확인 창이 열려 있거나 이번 프레임에 닫혔으면 보드 입력을 받지 않는다.
             var inspect = _board.Hud.Inspect;
             if (_mode == Mode.Idle && (inspect.IsOpen || inspect.ClosedFrame == Time.frameCount))
+            {
+                ClearHover();
                 return;
+            }
 
             // 잡고 있던 카드가 효과로 사라졌으면 손을 놓는다.
             if (_mode == Mode.Pressing ? _pressed == null : _mode != Mode.Idle && _held == null)
@@ -81,6 +88,7 @@ namespace TCG.Client.Interaction
             switch (_mode)
             {
                 case Mode.Idle:
+                    UpdateHover(screen);
                     if (pressed && !PointerOverUi())
                         BeginPress(screen);
                     break;
@@ -138,6 +146,9 @@ namespace TCG.Client.Interaction
             _pressPos = screen;
             _pressTime = Time.unscaledTime;
 
+            // 호버를 끝낸다 (집은 카드는 Held라 손패 따라가기에서 빠지고, 올라온 자리에서 그대로 집힌다).
+            ClearHover();
+
             if (card.OwnerIndex == _session.Human && _board.IsInHand(card))
             {
                 _held = card;
@@ -187,6 +198,43 @@ namespace TCG.Client.Interaction
             }
         }
 
+        // ------------------------------------------------------------------ 손패 호버
+
+        /// <summary>내 손패 카드 위에 마우스가 있으면 그 카드를 손패 위로 올린다. 움직임은 BoardView가 매 프레임 따라간다.</summary>
+        void UpdateHover(Vector2 screen)
+        {
+            // 연출 중에는 카드가 연출로 움직이므로 호버하지 않는다.
+            var card = PointerOverUi() || _session.Player.IsPlaying ? null : RaycastCard(screen);
+            if (card != null && (card.OwnerIndex != _session.Human || !_board.IsInHand(card)))
+                card = null;
+            // 올라간 카드의 원래 자리에 커서가 남아 있으면 그 카드를 계속 호버한다 (내려왔다 올라가는 떨림 방지).
+            if (card == null && _hovered != null && card != _hovered && !PointerOverUi() && !_session.Player.IsPlaying
+                && _board.IsInHand(_hovered) && _board.RestContains(_hovered, screen))
+                card = _hovered;
+
+            if (card != _hovered)
+            {
+                _hovered = card;
+                _board.HoveredHandCard = card;
+                _board.HandFollowUntil = Time.unscaledTime + HoverSettleSeconds;
+            }
+            if (_hovered != null)
+                _board.HandFollowUntil = Time.unscaledTime + HoverSettleSeconds;
+        }
+
+        /// <summary>호버를 끝내고 손패가 제자리로 부드럽게 돌아가게 한다.</summary>
+        void ClearHover()
+        {
+            if (_board.HoveredHandCard == null && (object)_hovered == null)
+                return;
+            _hovered = null;
+            _board.HoveredHandCard = null;
+            _board.HandFollowUntil = Time.unscaledTime + HoverSettleSeconds;
+        }
+
+        /// <summary>호버가 바뀐 뒤 손패가 따라가는 시간.</summary>
+        const float HoverSettleSeconds = 0.5f;
+
         // ------------------------------------------------------------------ 손패 카드 끌기
 
         void DragHeld(Vector2 screen)
@@ -200,7 +248,7 @@ namespace TCG.Client.Interaction
             var t = _held.transform;
             t.localPosition = Vector3.Lerp(t.localPosition, point, 0.5f);
             t.localRotation = Quaternion.Slerp(t.localRotation, Quaternion.Euler(-30f, 0f, 0f), 0.4f);
-            t.localScale = Vector3.one * 1.1f;
+            t.localScale = Vector3.Lerp(t.localScale, Vector3.one * DragScale, 0.4f);
         }
 
         void DropHeld(Vector2 screen)
@@ -236,10 +284,11 @@ namespace TCG.Client.Interaction
                     return;
                 }
                 _mode = Mode.Targeting;
-                _board.ShowcasePose(out var pos, out var rot);
-                _held.transform.localPosition = pos;
-                _held.transform.localRotation = rot;
-                _held.transform.localScale = Vector3.one * 1.3f;
+                // 사용한 카드는 왼쪽 아래로 치워 대상을 가리지 않게 한다.
+                _board.TargetingPose(out var pos, out var rot);
+                _held.transform.position = pos;
+                _held.transform.rotation = rot;
+                _held.transform.localScale = Vector3.one * BoardView.TargetingScale;
                 GlowTargets();
                 Hint("대상을 고르세요 (오른쪽 클릭 / Esc: 취소)", 3f);
                 return;
