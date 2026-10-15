@@ -10,7 +10,8 @@ namespace TCG.Core.Scoring
     /// </summary>
     public sealed class ScoreTable
     {
-        public int Version { get; set; } = 1;
+        /// <summary>2: 피해 트리거 6종 추가(피격 시 대체, GameDesign §7.6).</summary>
+        public int Version { get; set; } = 2;
 
         /// <summary>카드 기본 점수. 공격력+체력 = 2×코스트+1인 카드가 0점이 되게 하는 값. 포함된 소환물에는 붙지 않는다.</summary>
         public int BaseScore { get; set; } = -10;
@@ -58,7 +59,13 @@ namespace TCG.Core.Scoring
         {
             { TriggerType.OnEnter, 100 },
             { TriggerType.OnExit, 80 },
-            { TriggerType.OnDamaged, 120 },
+            // 피해 트리거 6종: 우선 옛 "피격 시" 배율(×1.2)을 그대로 쓰고 개별 조정한다 (GameDesign §7.6, 제안).
+            { TriggerType.OnEffectDamageTaken, 120 },
+            { TriggerType.OnCombatDamageTaken, 120 },
+            { TriggerType.OnAnyDamageTaken, 120 },
+            { TriggerType.OnEffectDamageDealt, 120 },
+            { TriggerType.OnCombatDamageDealt, 120 },
+            { TriggerType.OnAnyDamageDealt, 120 },
             { TriggerType.OnAttack, 120 },
             { TriggerType.OnCardPlayed, 150 },
             { TriggerType.Aura, 150 },
@@ -69,7 +76,9 @@ namespace TCG.Core.Scoring
         /// <summary>사용 횟수가 있는 카드에서 반복 트리거 배율을 사용 횟수로 대신하는 트리거.</summary>
         public List<TriggerType> RepeatingTriggers { get; set; } = new List<TriggerType>
         {
-            TriggerType.OnTurnStart, TriggerType.OnTurnEnd, TriggerType.OnDamaged, TriggerType.OnAttack, TriggerType.OnCardPlayed,
+            TriggerType.OnTurnStart, TriggerType.OnTurnEnd, TriggerType.OnAttack, TriggerType.OnCardPlayed,
+            TriggerType.OnEffectDamageTaken, TriggerType.OnCombatDamageTaken, TriggerType.OnAnyDamageTaken,
+            TriggerType.OnEffectDamageDealt, TriggerType.OnCombatDamageDealt, TriggerType.OnAnyDamageDealt,
         };
         /// <summary>사용 횟수 1당 반복 트리거 배율.</summary>
         public int UsageMultiplierPerUse { get; set; } = 100;

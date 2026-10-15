@@ -9,10 +9,14 @@ namespace TCG.Core.Data
     /// </summary>
     public static class CardValidator
     {
-        /// <summary>덱에 넣는 카드(최상위 카드)를 검사한다. registry를 생략하면 기본 블록 목록을 쓴다.</summary>
-        public static IReadOnlyList<string> Validate(CardDefinition card, EffectRegistry registry = null)
+        /// <summary>
+        /// 덱에 넣는 카드(최상위 카드)를 검사한다. registry를 생략하면 기본 블록 목록, rules를 생략하면 기본 규칙값을 쓴다
+        /// (rules는 카드 설명 글자 수에만 쓴다).
+        /// </summary>
+        public static IReadOnlyList<string> Validate(CardDefinition card, EffectRegistry registry = null, RuleConfig rules = null)
         {
             registry = registry ?? EffectRegistry.Default;
+            rules = rules ?? DefaultRules;
             var errors = new List<string>();
             if (card == null)
             {
@@ -23,12 +27,17 @@ namespace TCG.Core.Data
             if (card.Type == CardType.Summon)
                 errors.Add("소환물은 다른 카드의 효과로만 생성되며 단독 카드가 될 수 없습니다.");
 
-            ValidateCard(card, registry, errors, card.Name);
+            ValidateCard(card, registry, rules, errors, card.Name);
             return errors;
         }
 
-        static void ValidateCard(CardDefinition card, EffectRegistry registry, List<string> errors, string path)
+        static readonly RuleConfig DefaultRules = RuleConfig.CreateDefault();
+
+        static void ValidateCard(CardDefinition card, EffectRegistry registry, RuleConfig rules, List<string> errors, string path)
         {
+            if (card.Flavor != null && card.Flavor.Length > rules.MaxFlavorLength)
+                errors.Add($"[{path}] 카드 설명은 {rules.MaxFlavorLength}자 이하여야 합니다 (지금 {card.Flavor.Length}자).");
+
             if (card.Cost < 0)
                 errors.Add($"[{path}] 코스트는 0 이상이어야 합니다.");
 
@@ -81,10 +90,10 @@ namespace TCG.Core.Data
                 return;
 
             for (int i = 0; i < card.Effects.Count; i++)
-                ValidateEffect(card.Effects[i], registry, errors, $"{path}/효과{i + 1}");
+                ValidateEffect(card.Effects[i], registry, rules, errors, $"{path}/효과{i + 1}");
         }
 
-        static void ValidateEffect(EffectDefinition effect, EffectRegistry registry, List<string> errors, string path)
+        static void ValidateEffect(EffectDefinition effect, EffectRegistry registry, RuleConfig rules, List<string> errors, string path)
         {
             if (effect == null || effect.Trigger == null || effect.Target == null || effect.Action == null)
             {
@@ -132,7 +141,7 @@ namespace TCG.Core.Data
                 else if (summon.Type != CardType.Summon)
                     errors.Add($"[{path}] 소환물 생성 효과로는 소환물만 만들 수 있습니다.");
                 else
-                    ValidateCard(summon, registry, errors, $"{path}/{summon.Name}");
+                    ValidateCard(summon, registry, rules, errors, $"{path}/{summon.Name}");
             }
             else if (effect.Action.Summon != null)
             {

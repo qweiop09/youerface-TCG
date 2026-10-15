@@ -32,7 +32,12 @@ namespace TCG.Client.Common
                 case TriggerType.OnExit: return "퇴장 시";
                 case TriggerType.OnTurnStart: return "내 턴 시작 시";
                 case TriggerType.OnTurnEnd: return "내 턴 종료 시";
-                case TriggerType.OnDamaged: return "피격 시";
+                case TriggerType.OnEffectDamageTaken: return "효과 피해를 받을 때";
+                case TriggerType.OnCombatDamageTaken: return "전투 피해를 받을 때";
+                case TriggerType.OnAnyDamageTaken: return "모든 피해를 받을 때";
+                case TriggerType.OnEffectDamageDealt: return "효과 피해를 줄 때";
+                case TriggerType.OnCombatDamageDealt: return "전투 피해를 줄 때";
+                case TriggerType.OnAnyDamageDealt: return "모든 피해를 줄 때";
                 case TriggerType.OnAttack: return "공격 시";
                 case TriggerType.OnCardPlayed: return "카드 사용 시";
                 case TriggerType.Aura: return "상시";

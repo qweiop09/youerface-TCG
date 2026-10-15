@@ -122,7 +122,7 @@ namespace TCG.Tests.Core
         {
             var g = new TestGame(new RuleConfig { MaxTriggerResolutionsPerAction = 50 });
             var def = TestCards.Minion("c_echo", 0, 0, 1000);
-            def.Effects.Add(TestCards.Effect(TriggerType.OnDamaged, TargetType.AllFriendlyMinions, ActionType.Damage, 1));
+            def.Effects.Add(TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.AllFriendlyMinions, ActionType.Damage, 1));
             var a = g.AddToBoard(1, def);
             g.AddToBoard(1, def);
 

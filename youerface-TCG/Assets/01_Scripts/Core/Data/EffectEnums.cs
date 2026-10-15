@@ -14,14 +14,35 @@ namespace TCG.Core.Data
         OnTurnStart,
         /// <summary>내 턴 종료 시 (소환물 자동 발동)</summary>
         OnTurnEnd,
-        /// <summary>피격 시</summary>
-        OnDamaged,
+        /// <summary>효과 피해를 받을 때 (GameDesign §7.6)</summary>
+        OnEffectDamageTaken,
+        /// <summary>전투 피해(공격·반격)를 받을 때</summary>
+        OnCombatDamageTaken,
+        /// <summary>모든 피해를 받을 때 (효과·전투·피로). 스키마 v2의 "피격 시"(OnDamaged)가 이리로 옮겨진다.</summary>
+        OnAnyDamageTaken,
+        /// <summary>효과 피해를 줄 때</summary>
+        OnEffectDamageDealt,
+        /// <summary>전투 피해(공격·반격)를 줄 때</summary>
+        OnCombatDamageDealt,
+        /// <summary>모든 피해를 줄 때 (효과·전투. 피로 피해는 주는 쪽이 없음)</summary>
+        OnAnyDamageDealt,
         /// <summary>공격 시</summary>
         OnAttack,
         /// <summary>카드 사용 시</summary>
         OnCardPlayed,
         /// <summary>상시(지속)</summary>
         Aura,
+    }
+
+    /// <summary>피해 유형 (GameDesign §7.6).</summary>
+    public enum DamageType
+    {
+        /// <summary>카드 효과의 "피해" 행동</summary>
+        Effect,
+        /// <summary>공격과 반격</summary>
+        Combat,
+        /// <summary>덱 소진 규칙 피해. "모든 피해를 받을 때"에만 걸린다.</summary>
+        Fatigue,
     }
 
     /// <summary>효과 발동 조건.</summary>

@@ -118,7 +118,7 @@ namespace TCG.Core.Data
                     continue;
                 }
 
-                var cardErrors = CardValidator.Validate(card, registry);
+                var cardErrors = CardValidator.Validate(card, registry, rules);
                 for (int e = 0; e < cardErrors.Count; e++)
                     report.Issues.Add(new DeckIssue(DeckIssueKind.InvalidCard, id, $"{card.Name ?? id}: {cardErrors[e]}"));
 
@@ -156,7 +156,7 @@ namespace TCG.Core.Data
                 reason = $"같은 카드는 {rules.MaxCopiesPerCard}장까지 넣을 수 있습니다.";
                 return false;
             }
-            var errors = CardValidator.Validate(card, registry);
+            var errors = CardValidator.Validate(card, registry, rules);
             if (errors.Count > 0)
             {
                 reason = "규칙에 맞지 않는 카드입니다: " + errors[0];

@@ -11,7 +11,7 @@ namespace TCG.Core.Serialization
     /// </summary>
     public static class CardSerializer
     {
-        public const int CurrentSchemaVersion = 2;
+        public const int CurrentSchemaVersion = 3;
         public const string SchemaVersionProperty = "schemaVersion";
 
         public static string Serialize(CardDefinition card, bool indented = true)
@@ -69,6 +69,7 @@ namespace TCG.Core.Serialization
         static readonly Func<JObject, JObject>[] Migrations =
         {
             MigrateV1ToV2,
+            MigrateV2ToV3,
         };
 
         /// <summary>v1 → v2: 문자열 presentationStyle을 등장·퇴장 연출 설정 객체로 바꾼다 (효과 연출 설정은 기본값).</summary>
@@ -96,6 +97,30 @@ namespace TCG.Core.Serialization
                     if (effect?["action"]?["summon"] is JObject summon)
                         MigrateCardV1ToV2(summon);
                 }
+            }
+        }
+
+        /// <summary>
+        /// v2 → v3: 피해 유형 분리 (GameDesign §7.6). 트리거 "OnDamaged"(피격 시) → "OnAnyDamageTaken"(모든 피해를 받을 때).
+        /// 카드 설명(flavor)은 새 선택 칸이라 변환할 것이 없다.
+        /// </summary>
+        static JObject MigrateV2ToV3(JObject root)
+        {
+            MigrateCardV2ToV3(root);
+            return root;
+        }
+
+        static void MigrateCardV2ToV3(JObject card)
+        {
+            if (!(card["effects"] is JArray effects))
+                return;
+            foreach (var effect in effects)
+            {
+                if (effect?["trigger"] is JObject trigger && trigger["type"] is JValue type &&
+                    type.Type == JTokenType.String && (string)type == "OnDamaged")
+                    trigger["type"] = "OnAnyDamageTaken";
+                if (effect?["action"]?["summon"] is JObject summon)
+                    MigrateCardV2ToV3(summon);
             }
         }
 

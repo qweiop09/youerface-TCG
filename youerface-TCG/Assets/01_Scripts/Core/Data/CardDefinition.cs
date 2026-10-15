@@ -30,6 +30,8 @@ namespace TCG.Core.Data
         /// <summary>등장·퇴장 연출 설정 (GameDesign §7.3).</summary>
         public CardPresentation Presentation { get; set; } = new CardPresentation();
         public List<EffectDefinition> Effects { get; set; } = new List<EffectDefinition>();
+        /// <summary>카드 설명(설정 문구, GameDesign §11.1). 점수·규칙에 영향 없음. 없으면 null.</summary>
+        public string Flavor { get; set; }
     }
 
     /// <summary>카드 이미지. 내용 해시("sha256:...")로 참조한다.</summary>

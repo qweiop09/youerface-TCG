@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "s_berserker",
   "name": "광전사",
   "type": "Minion",
@@ -16,7 +16,7 @@
   "effects": [
     {
       "trigger": {
-        "type": "OnDamaged"
+        "type": "OnAnyDamageTaken"
       },
       "activation": "Mandatory",
       "conditions": [],

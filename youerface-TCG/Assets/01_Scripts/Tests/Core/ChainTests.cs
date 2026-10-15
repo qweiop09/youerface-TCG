@@ -73,9 +73,9 @@ namespace TCG.Tests.Core
         {
             var g = new TestGame();
             var attackerDef = TestCards.Minion("c_atk", 1, 1, 5);
-            attackerDef.Effects.Add(TestCards.Effect(TriggerType.OnDamaged, TargetType.EnemyHero, ActionType.Damage, 1));
+            attackerDef.Effects.Add(TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.EnemyHero, ActionType.Damage, 1));
             var defenderDef = TestCards.Minion("c_def", 1, 1, 5);
-            defenderDef.Effects.Add(TestCards.Effect(TriggerType.OnDamaged, TargetType.EnemyHero, ActionType.Damage, 1));
+            defenderDef.Effects.Add(TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.EnemyHero, ActionType.Damage, 1));
             var attacker = g.AddToBoard(0, attackerDef);
             var defender = g.AddToBoard(1, defenderDef);
 
@@ -128,13 +128,13 @@ namespace TCG.Tests.Core
         {
             var g = new TestGame { AutoDecide = false };
             var attackerDef = TestCards.Minion("c_atk", 1, 1, 10);
-            attackerDef.Effects.Add(TestCards.Effect(TriggerType.OnDamaged, TargetType.EnemyHero, ActionType.Damage, 1));
-            attackerDef.Effects.Add(TestCards.Effect(TriggerType.OnDamaged, TargetType.EnemyHero, ActionType.Damage, 2));
-            var optional = TestCards.Effect(TriggerType.OnDamaged, TargetType.EnemyHero, ActionType.Damage, 3);
+            attackerDef.Effects.Add(TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.EnemyHero, ActionType.Damage, 1));
+            attackerDef.Effects.Add(TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.EnemyHero, ActionType.Damage, 2));
+            var optional = TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.EnemyHero, ActionType.Damage, 3);
             optional.Activation = EffectActivation.Optional;
             attackerDef.Effects.Add(optional);
             var defenderDef = TestCards.Minion("c_def", 1, 1, 10);
-            defenderDef.Effects.Add(TestCards.Effect(TriggerType.OnDamaged, TargetType.EnemyHero, ActionType.Damage, 4));
+            defenderDef.Effects.Add(TestCards.Effect(TriggerType.OnAnyDamageTaken, TargetType.EnemyHero, ActionType.Damage, 4));
             var attacker = g.AddToBoard(0, attackerDef);
             var defender = g.AddToBoard(1, defenderDef);
 

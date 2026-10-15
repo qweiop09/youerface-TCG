@@ -88,7 +88,7 @@ youerface-TCG/Assets/
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "c_7f3a...",
   "name": "불꽃 정령",
   "type": "Minion",
@@ -99,6 +99,7 @@ youerface-TCG/Assets/
   "art":    { "image": "sha256:ab12..." },
   "sounds": { "enter": "sha256:cd34...", "exit": "sha256:ef56..." },
   "presentation": { "enter": "default", "exit": "default" },
+  "flavor": "용암 틈에서 처음 눈을 떴다.",
   "effects": [
     {
       "trigger":    { "type": "OnEnter" },
@@ -124,9 +125,12 @@ youerface-TCG/Assets/
 - `onDuplicate`(소환물 필수): `AddNew`(하나 더 놓기) | `RefreshUsage`(기존 소환물 사용 횟수 갱신). "같은 소환물" = 같은 카드 ID의 같은 효과 순번이 만든 소환물.
 - `effects[].activation`: `Mandatory`(강제, 기본값) | `Optional`(선택). 없으면 강제로 읽는다.
 - `keywords`: `Taunt`(도발) | `Stealth`(은신) | `Vanguard`(선봉) | `Exhaust`(일회성, 주문 전용) | `TreasureChest`(보물상자). 붙일 수 있는 카드 종류는 레지스트리가 정하고 `CardValidator`가 검사한다.
-- **점수는 저장하지 않는다.** 항상 `ScoreCalculator`로 계산 (패치 시 자동 반영). 공식은 GameDesign §6.1, 가중치는 `ScoreTable`(Version 1, 블록별 사전 — 표에 없는 블록은 0점·배율 100). `Calculate`=실제 값(음수 가능, 편집 화면·방 규칙), `CalculateDisplay`=카드 표시(최소 0), `CalculateDetailed`=항목별 내역(`ScoreLine`: 기본·스탯·코스트·키워드·효과 순번·하드캡 환급). 새 블록을 추가하면 `ScoreTable`에도 값을 넣고 Version을 올린다.
+- **점수는 저장하지 않는다.** 항상 `ScoreCalculator`로 계산 (패치 시 자동 반영). 공식은 GameDesign §6.1, 가중치는 `ScoreTable`(Version 2 — M5.5-0에서 피해 트리거 6종 추가, 블록별 사전 — 표에 없는 블록은 0점·배율 100). `Calculate`=실제 값(음수 가능, 편집 화면·방 규칙), `CalculateDisplay`=카드 표시(최소 0), `CalculateDetailed`=항목별 내역(`ScoreLine`: 기본·스탯·코스트·키워드·효과 순번·하드캡 환급). 새 블록을 추가하면 `ScoreTable`에도 값을 넣고 Version을 올린다.
 - `presentation`(카드): 등장·퇴장 연출 종류(문자열 ID, 기본 `"default"`). 끌 수 없다. `effects[].presentation`: `enabled`(효과 연출 켜기/끄기), `activation`·`resolution`(발동·처리 연출 종류), `hitMode`(`Simultaneous` | `Sequential`, 광역 피격). GameDesign §7.3.
 - 스키마 v1 → v2: `presentationStyle` 문자열을 `presentation.enter/exit`로 옮긴다(중첩 소환물 포함). 덱 JSON은 별도 형식 버전(1): `{ schemaVersion, id, name, cards: [카드 ID…] }`.
+- 스키마 v2 → v3 (M5.5-0): 트리거 `OnDamaged`(피격 시) → `OnAnyDamageTaken`(모든 피해를 받을 때), 중첩 소환물 포함. 새 선택 칸 `flavor`(카드 설명, 점수·규칙 무관, 없으면 생략). 저장된 내 카드는 읽을 때 변환되고 다음 저장 때 v3로 쓰인다.
+- `flavor` 글자 수: `RuleConfig.MaxFlavorLength`(제안값 100, `string.Length` 기준·줄바꿈 포함), `CardValidator.Validate(card, registry, rules)`가 검사(소환물 포함).
+- 트리거 열거형(`TriggerType`): `OnEnter` `OnExit` `OnTurnStart` `OnTurnEnd` `OnAttack` `OnCardPlayed` `Aura` + 피해 6종 `OnEffectDamageTaken` `OnCombatDamageTaken` `OnAnyDamageTaken` `OnEffectDamageDealt` `OnCombatDamageDealt` `OnAnyDamageDealt` (GameDesign §7.6).
 - 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다.
 - 스키마 변경 시 `schemaVersion`을 올리고 마이그레이션 코드를 둔다.
 
@@ -147,13 +151,14 @@ youerface-TCG/Assets/
 - **이벤트**: 체인에 올라감 `EffectActivatedEvent`(발동 연출) → 처리 시작 `EffectResolvingEvent`(처리 연출, 뒤따르는 이벤트가 결과) / 무효화 `EffectNegatedEvent` → `ChainEndedEvent`. 선택 대기 `DecisionRequestedEvent`.
 - **카드 내기**: 코스트 지불 → 손패에서 제거 → 즉시 배치(필드는 기존 필드 퇴장 먼저) / 주문은 바로 묘지(일회성은 소멸) → 발동한 효과들(내 보드의 "카드 사용 시", 낸 카드의 "등장 시", 교체된 필드의 "퇴장 시")로 체인.
 - **턴 시작**: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 체인.
+- **피해** (GameDesign §7.6): `DealDamage(source, target, amount, DamageType)` — `Effect`(피해 행동) / `Combat`(공격·반격) / `Fatigue`(피로, 출처 0). 피해 적용 → `DamageDealtEvent`(유형 포함) → 받은 기물의 "받을 때"(유형별 + 모든) → 준 카드(보드 위일 때)의 "줄 때"(유형별 + 모든)를 효과 순번대로 모은다. 피로는 "모든 피해를 받을 때"에만. 영웅은 아직 효과가 없어 받는 쪽 트리거가 없다. 전투는 공격·반격 피해를 **둘 다 적용하고 트리거를 모은 뒤** 사망 처리(공격받아 쓰러진 기물의 반격 "줄 때"도 걸림). 이미 모인 효과는 주인이 퇴장해도 처리된다(기존 규칙). 피해 트리거도 반복 트리거라 사용 횟수를 1 소모.
 - **수치 모델**: 공격력·체력·코스트 = 기본값(영구 변경 포함) + 상시 보정값. 체력은 받은 피해량으로 관리하고, 상시 보정은 처리 단계마다 처음부터 다시 계산한다.
 - **상태 해시** (`StateHasher`, FNV-1a 64): 리플레이·동기화 검증용. 시드 + 덱 + 명령 목록이 같으면 해시가 같다.
 
 ## 4.2 화면 (M3, 2.5D) — 구현 메모
 
 - 화면 요소는 프리팹 없이 **코드로 생성**한다 (`Shapes`, `CardView` 등). 카드 그림·사운드가 붙기 전까지 종류별 색 + 이름 + 숫자로 그린다.
-- 보드 좌표: 바닥이 XZ 평면, 화면을 보는 플레이어가 -Z 쪽. 배치는 `BoardLayout`에 모아 둔다 (동료 2x2 | 필드 | 기물 3 | 소환물 2x2 | 덱, 뒤에 영웅).
+- 보드 좌표: 바닥이 XZ 평면, 화면을 보는 플레이어가 -Z 쪽. 배치는 `BoardLayout`에 모아 둔다 (앞줄: 동료 2열 | 기물 5 | 소환물 2열, 뒷줄: 동료 2열 | 필드 · 영웅 | 소환물 2열 | 덱). 기물 간격 1.4, 동료·소환물 묶음은 기물 줄과 0.5 띄움, 덱은 소환물 바깥 한 칸 아래, 필드는 영웅 왼쪽 뒷줄. 16:9·16:10 확인은 M5.5-1.
 - `BoardView.Render(state, viewer)`는 상태를 **즉시** 그대로 배치한다 (연출 없음). 연출 재생기는 이 위에 얹는다.
 - 한글 폰트: 지금은 OS 폰트(맥 Apple SD Gothic Neo, 윈도우 맑은 고딕)를 실행 중에 불러온다. **출시 전 라이선스 맞는 폰트 파일로 교체 필요.**
 - 런타임 머티리얼은 `Resources/Materials`의 기본 머티리얼을 복제해 색만 바꾼다 (빌드에 URP 셰이더 포함 보장).
@@ -213,6 +218,7 @@ youerface-TCG/Assets/
   - 1차 구현: **Unity Relay + Lobby (UGS)** — NAT 문제 해결, Win/Mac/모바일 크로스플레이. (M6-4, 사용자가 UGS 대시보드 연결 후)
   - Steam 출시 시: Steam 네트워킹은 Steam 사용자끼리만 연결되어 모바일 크로스플레이가 끊긴다. 대전 연결은 UGS로 유지하고 Steam은 친구 초대·오버레이·업적에만 쓰는 것을 권장.
 - 턴제라 메시지 단위 통신이면 충분. Netcode for GameObjects 같은 오브젝트 동기화 프레임워크는 쓰지 않는다.
+- 버전 (M5.5-0): 통신 `NetProtocol.Version` 2(피해 이벤트에 `damageType`), 카드 스키마 3, 점수표 2. 하나라도 다르면 접속 거절.
 - 대전 시작 핸드셰이크: 앱/스키마/점수표 버전 확인 → 덱 교환 및 `ScoreCalculator`로 방 규칙 검증 → 없는 에셋(해시 기준) 전송 → 시작.
 - 나중에 전용 서버가 필요하면 Core를 그대로 서버에 올린다.
 

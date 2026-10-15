@@ -17,7 +17,7 @@ namespace TCG.Core.Net
     public static class NetProtocol
     {
         /// <summary>메시지 형식 버전. 바꾸면 올린다(맞지 않으면 접속 거절).</summary>
-        public const int Version = 1;
+        public const int Version = 2; // 2: 피해 이벤트에 피해 유형 (M5.5-0)
         /// <summary>에셋 조각 크기(원본 바이트). Relay 패킷 제한은 전송 구현이 따로 처리한다.</summary>
         public const int AssetChunkBytes = 32 * 1024;
     }

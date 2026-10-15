@@ -15,7 +15,7 @@ namespace TCG.Core.Effects
         {
             int amount = context.Effect.Action.Amount ?? 0;
             for (int i = 0; i < targets.Count; i++)
-                context.Rules.DealDamage(context.Source.Id, targets[i], amount);
+                context.Rules.DealDamage(context.Source.Id, targets[i], amount, DamageType.Effect);
         }
     }
 

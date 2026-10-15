@@ -21,7 +21,7 @@ namespace TCG.Tests.Core
         public void PlayerZones_UseConfirmedSlotCounts()
         {
             var player = _state.GetPlayer(0);
-            Assert.That(player.Minions.Capacity, Is.EqualTo(3));
+            Assert.That(player.Minions.Capacity, Is.EqualTo(5));
             Assert.That(player.Field.Capacity, Is.EqualTo(1));
             Assert.That(player.Companions.Capacity, Is.EqualTo(4));
             Assert.That(player.Summons.Capacity, Is.EqualTo(4));
@@ -30,7 +30,7 @@ namespace TCG.Tests.Core
             Assert.That(player.Graveyard.IsUnlimited, Is.True);
         }
 
-        [TestCase(ZoneType.Minion, 3)]
+        [TestCase(ZoneType.Minion, 5)]
         [TestCase(ZoneType.Field, 1)]
         [TestCase(ZoneType.Companion, 4)]
         [TestCase(ZoneType.Summon, 4)]

@@ -51,10 +51,14 @@ namespace TCG.Core.Data
         public int MaxTriggerResolutionsPerAction { get; set; } = 1000;
 
         // --- 영역 칸 수 (확정, GameDesign §4.1) ---
-        public int MinionSlots { get; set; } = 3;
+        public int MinionSlots { get; set; } = 5;
         public int FieldSlots { get; set; } = 1;
         public int CompanionSlots { get; set; } = 4;
         public int SummonSlots { get; set; } = 4;
+
+        // --- 카드 데이터 (개발 측 제안값, GameDesign §11.1) ---
+        /// <summary>카드 설명(flavor) 최대 글자 수 (string 길이, 줄바꿈 포함). 제안값.</summary>
+        public int MaxFlavorLength { get; set; } = 100;
 
         public static RuleConfig CreateDefault() => new RuleConfig();
     }

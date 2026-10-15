@@ -48,7 +48,7 @@ namespace TCG.Tests.Core
         public void FullMinionZone_CannotPlayMinion()
         {
             var g = new TestGame();
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < g.State.Rules.MinionSlots; i++)
                 g.AddToBoard(0, TestCards.Minion());
             var card = g.AddToHand(0, TestCards.Minion());
 

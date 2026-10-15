@@ -80,8 +80,8 @@ namespace TCG.Client.Board
                     SlotPlate(slots, BoardLayout.Summon(i, bottom));
                 }
 
-                ZoneName(slots, "기물", BoardLayout.Minion(1, bottom), bottom);
-                ZoneName(slots, "필드", BoardLayout.Field(bottom), bottom);
+                ZoneName(slots, "기물", BoardLayout.Minion(BoardLayout.MinionSlots / 2, bottom), bottom);
+                ZoneName(slots, "필드", BoardLayout.Field(bottom), bottom, outward: true);
                 ZoneName(slots, "동료", Vector3.Lerp(BoardLayout.Companion(0, bottom), BoardLayout.Companion(1, bottom), 0.5f), bottom);
                 ZoneName(slots, "소환물", Vector3.Lerp(BoardLayout.Summon(0, bottom), BoardLayout.Summon(1, bottom), 0.5f), bottom);
 
@@ -103,9 +103,11 @@ namespace TCG.Client.Board
                 new Vector3(CardView.Width + 0.1f, 0.01f, CardView.Height + 0.1f), Slot);
         }
 
-        static void ZoneName(Transform parent, string text, Vector3 slotCenter, bool bottom)
+        /// <summary>칸 이름. 기본은 칸의 가운데 쪽(구분선 쪽), outward면 바깥쪽(뒷줄 칸: 앞줄과 겹치지 않게).</summary>
+        static void ZoneName(Transform parent, string text, Vector3 slotCenter, bool bottom, bool outward = false)
         {
-            var offset = new Vector3(0, 0.002f, bottom ? 0.9f : -0.9f);
+            float toward = outward ? -0.9f : 0.9f;
+            var offset = new Vector3(0, 0.002f, bottom ? toward : -toward);
             Shapes.Label(parent, $"Label {text}", text, slotCenter + offset, 2.2f, ZoneLabel, 2f, 0.25f);
         }
 

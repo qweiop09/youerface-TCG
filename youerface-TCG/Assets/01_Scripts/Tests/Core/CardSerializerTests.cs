@@ -177,7 +177,7 @@ namespace TCG.Tests.Core
             Assert.That(card.Presentation.Exit, Is.EqualTo("fire"));
             Assert.That(card.Effects[0].Action.Summon.Presentation.Enter, Is.EqualTo("ice"));
             Assert.That(card.Effects[0].Presentation.HitMode, Is.EqualTo(HitPresentationMode.Simultaneous));
-            Assert.That(JObject.Parse(CardSerializer.Serialize(card))["schemaVersion"].Value<int>(), Is.EqualTo(2));
+            Assert.That(JObject.Parse(CardSerializer.Serialize(card))["schemaVersion"].Value<int>(), Is.EqualTo(CardSerializer.CurrentSchemaVersion));
         }
 
         [Test]

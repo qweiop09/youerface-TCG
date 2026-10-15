@@ -198,7 +198,12 @@ namespace TCG.Core.Events
         public int SourceId { get; }
         public int TargetId { get; }
         public int Amount { get; }
-        public DamageDealtEvent(int sourceId, int targetId, int amount) { SourceId = sourceId; TargetId = targetId; Amount = amount; }
+        /// <summary>피해 유형 (GameDesign §7.6). 피로 피해는 SourceId = 0.</summary>
+        public DamageType DamageType { get; }
+        public DamageDealtEvent(int sourceId, int targetId, int amount, DamageType damageType)
+        {
+            SourceId = sourceId; TargetId = targetId; Amount = amount; DamageType = damageType;
+        }
     }
 
     public sealed class HealedEvent : GameEvent

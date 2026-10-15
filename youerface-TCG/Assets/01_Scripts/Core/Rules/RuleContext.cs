@@ -83,7 +83,7 @@ namespace TCG.Core.Rules
                     return;
                 player.FatigueCount++;
                 Emit(new FatigueEvent(playerIndex, player.FatigueCount));
-                DealDamage(0, player.Hero.Id, player.FatigueCount);
+                DealDamage(0, player.Hero.Id, player.FatigueCount, DamageType.Fatigue);
                 return;
             }
 
@@ -112,29 +112,74 @@ namespace TCG.Core.Rules
 
         // ------------------------------------------------------------------ 피해 / 회복 / 수치
 
-        /// <summary>영웅 또는 체력이 있는 보드 위 카드(기물)에 피해. 필드·동료·소환물은 체력이 없어 무시된다.</summary>
-        public void DealDamage(int sourceId, int targetId, int amount)
+        /// <summary>
+        /// 영웅 또는 체력이 있는 보드 위 카드(기물)에 피해. 필드·동료·소환물은 체력이 없어 무시된다.
+        /// 체력이 0 이하가 되면 그 즉시 사망한다 (GameDesign §7.2).
+        /// </summary>
+        public void DealDamage(int sourceId, int targetId, int amount, DamageType type)
+        {
+            var hit = ApplyDamage(sourceId, targetId, amount, type);
+            if (hit != null && hit.IsDead)
+                RemoveFromBoard(hit, ExitReason.Died);
+        }
+
+        /// <summary>
+        /// 피해만 적용하고 피해 트리거를 모은다 (사망 처리는 호출한 쪽). 맞은 기물을 돌려준다(영웅·무시되면 null).
+        /// 트리거 수집 순서 (GameDesign §7.6): 받은 쪽의 "받을 때" → 준 쪽(보드 위 카드)의 "줄 때".
+        /// 피로 피해는 "모든 피해를 받을 때"에만 걸리고 주는 쪽이 없다.
+        /// </summary>
+        Entity ApplyDamage(int sourceId, int targetId, int amount, DamageType type)
         {
             if (amount <= 0)
-                return;
+                return null;
 
+            Entity hit = null;
             var hero = State.FindHero(targetId);
             if (hero != null)
             {
                 hero.Health -= amount;
-                Emit(new DamageDealtEvent(sourceId, targetId, amount));
-                return;
             }
+            else
+            {
+                hit = FindBoardEntity(targetId);
+                if (hit == null || !hit.Health.HasValue)
+                    return null;
+                hit.Damage += amount;
+            }
+            Emit(new DamageDealtEvent(sourceId, targetId, amount, type));
 
-            var e = FindBoardEntity(targetId);
-            if (e == null || !e.Health.HasValue)
-                return;
-            e.Damage += amount;
-            Emit(new DamageDealtEvent(sourceId, targetId, amount));
-            CollectTriggers(e, TriggerType.OnDamaged);
-            // 체력이 0 이하가 되면 그 즉시 사망한다 (GameDesign §7.2).
-            if (e.IsDead)
-                RemoveFromBoard(e, ExitReason.Died);
+            // 영웅은 아직 효과를 갖지 않으므로 받는 쪽 트리거는 기물만.
+            if (hit != null)
+                CollectTriggers(hit, TakenTrigger(type), TriggerType.OnAnyDamageTaken);
+
+            if (type != DamageType.Fatigue && sourceId != 0)
+            {
+                var source = FindBoardEntity(sourceId);
+                if (source != null)
+                    CollectTriggers(source, DealtTrigger(type), TriggerType.OnAnyDamageDealt);
+            }
+            return hit;
+        }
+
+        /// <summary>피해 유형별 "받을 때" 트리거. 피로는 유형 전용 트리거가 없다(null).</summary>
+        static TriggerType? TakenTrigger(DamageType type)
+        {
+            switch (type)
+            {
+                case DamageType.Effect: return TriggerType.OnEffectDamageTaken;
+                case DamageType.Combat: return TriggerType.OnCombatDamageTaken;
+                default: return null;
+            }
+        }
+
+        static TriggerType? DealtTrigger(DamageType type)
+        {
+            switch (type)
+            {
+                case DamageType.Effect: return TriggerType.OnEffectDamageDealt;
+                case DamageType.Combat: return TriggerType.OnCombatDamageDealt;
+                default: return null;
+            }
         }
 
         public void Heal(int targetId, int amount)
@@ -258,9 +303,16 @@ namespace TCG.Core.Rules
         // ------------------------------------------------------------------ 발동 수집
 
         /// <summary>카드의 효과 중 trigger에 해당하고 조건을 만족하는 것을 대기 효과로 모은다.</summary>
-        public void CollectTriggers(Entity source, TriggerType trigger, int? chosenTargetId = null, bool isCast = false)
+        public void CollectTriggers(Entity source, TriggerType trigger, int? chosenTargetId = null, bool isCast = false) =>
+            CollectTriggers(source, trigger, null, chosenTargetId, isCast);
+
+        /// <summary>
+        /// 두 트리거 중 하나에 해당하는 효과를 효과 순번대로 한 번에 모은다 (예: "전투 피해를 받을 때" + "모든 피해를 받을 때").
+        /// first가 null이면 second만.
+        /// </summary>
+        public void CollectTriggers(Entity source, TriggerType? first, TriggerType? second, int? chosenTargetId = null, bool isCast = false)
         {
-            bool mustBeOnBoard = trigger != TriggerType.OnExit && !isCast;
+            bool mustBeOnBoard = first != TriggerType.OnExit && !isCast;
             if (mustBeOnBoard && !source.IsOnBoard)
                 return;
 
@@ -269,7 +321,10 @@ namespace TCG.Core.Rules
             for (int i = 0; i < effects.Count; i++)
             {
                 var effect = effects[i];
-                if (effect?.Trigger == null || effect.Trigger.Type != trigger || effect.Action == null)
+                if (effect?.Trigger == null || effect.Action == null)
+                    continue;
+                var type = effect.Trigger.Type;
+                if (type != first && type != second)
                     continue;
                 if (!ConditionsMet(new EffectContext(this, source, effect, i, chosenTargetId)))
                     continue;
@@ -280,7 +335,7 @@ namespace TCG.Core.Rules
                     SourceId = source.Id,
                     ControllerIndex = source.OwnerIndex,
                     EffectIndex = i,
-                    Trigger = trigger,
+                    Trigger = type,
                     ChosenTargetId = chosenTargetId,
                     IsCast = isCast,
                     IsOptional = effect.Activation == EffectActivation.Optional,
@@ -506,7 +561,7 @@ namespace TCG.Core.Rules
             var context = new EffectContext(this, source, effect, link.EffectIndex, link.ChosenTargetId);
             Execute(context);
 
-            // 반복 발동(턴 시작/종료, 피격, 공격, 카드 사용 시)은 처리될 때마다 사용 횟수를 1 소모한다.
+            // 반복 발동(턴 시작/종료, 피해 받을·줄 때, 공격, 카드 사용 시)은 처리될 때마다 사용 횟수를 1 소모한다.
             if (ConsumesUsage(link.Trigger) && source.Usage.HasValue && source.IsOnBoard)
                 ModifyUsage(source, -1);
         }
@@ -574,7 +629,10 @@ namespace TCG.Core.Rules
             }
         }
 
-        /// <summary>공격자와 대상이 서로 공격력만큼 동시에 피해 (영웅은 반격 없음).</summary>
+        /// <summary>
+        /// 공격자와 대상이 서로 공격력만큼 동시에 전투 피해 (영웅은 반격 없음).
+        /// 두 피해를 모두 적용하고 피해 트리거를 모은 뒤 사망을 처리한다 — 반격한 기물이 공격으로 쓰러져도 "줄 때"가 걸린다.
+        /// </summary>
         void CombatDamage(int attackerId, int targetId)
         {
             var attacker = FindBoardEntity(attackerId);
@@ -588,9 +646,13 @@ namespace TCG.Core.Rules
 
             int attackerDamage = attacker.Attack ?? 0;
             int counterDamage = targetMinion?.Attack ?? 0;
-            DealDamage(attacker.Id, targetId, attackerDamage);
-            if (targetMinion != null)
-                DealDamage(targetMinion.Id, attacker.Id, counterDamage);
+            var hitTarget = ApplyDamage(attacker.Id, targetId, attackerDamage, DamageType.Combat);
+            var hitAttacker = targetMinion != null ? ApplyDamage(targetMinion.Id, attacker.Id, counterDamage, DamageType.Combat) : null;
+
+            if (hitTarget != null && hitTarget.IsDead)
+                RemoveFromBoard(hitTarget, ExitReason.Died);
+            if (hitAttacker != null && hitAttacker.IsDead)
+                RemoveFromBoard(hitAttacker, ExitReason.Died);
         }
 
         /// <summary>턴 시작: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 발동 수집.</summary>
