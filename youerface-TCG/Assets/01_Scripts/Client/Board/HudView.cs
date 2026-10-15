@@ -14,8 +14,8 @@ namespace TCG.Client.Board
         sealed class Line
         {
             public string Who;
-            public int Cost, MaxCost, Hand, Deck;
-            public override string ToString() => $"{Who}   코스트 {Cost}/{MaxCost}   손패 {Hand}   덱 {Deck}";
+            public int Hand, Deck;
+            public override string ToString() => $"{Who}   손패 {Hand}   덱 {Deck}";
         }
 
         TextMeshProUGUI _turn, _mine, _theirs, _banner, _hint;
@@ -57,6 +57,7 @@ namespace TCG.Client.Board
             view._online = Text(go.transform, "Online", new Vector2(0.5f, 1f), new Vector2(0, -66), 26, TextAlignmentOptions.Top);
             view._online.rectTransform.sizeDelta = new Vector2(1200, 80);
             view._online.text = "";
+            view.Gems = CostGemsView.Create(go.transform);
             view.BigCard = BigCardOverlay.Create(go.transform);
             view.Inspect = CardInspectOverlay.Create(go.transform);
             view.CoinToss = CoinTossOverlay.Create(go.transform);
@@ -85,6 +86,8 @@ namespace TCG.Client.Board
         public BigCardOverlay BigCard { get; private set; }
         /// <summary>카드 확인 (짧은 클릭으로 크게 보기).</summary>
         public CardInspectOverlay Inspect { get; private set; }
+        /// <summary>코스트 보석 (오른쪽 아래 = 나, 오른쪽 위 = 상대).</summary>
+        public CostGemsView Gems { get; private set; }
         /// <summary>대전 시작 코인 토스.</summary>
         public CoinTossOverlay CoinToss { get; private set; }
 
@@ -127,18 +130,17 @@ namespace TCG.Client.Board
             _turn.text = $"턴 {state.TurnNumber} · {Whose(state, viewer)}";
             Fill(_lines[0], state.GetPlayer(viewer));
             Fill(_lines[1], state.GetOpponent(viewer));
+            var mine = state.GetPlayer(viewer);
+            var theirs = state.GetOpponent(viewer);
+            Gems.Set(0, mine.AvailableCost, mine.MaxCost, state.Rules.MaxCostLimit);
+            Gems.Set(1, theirs.AvailableCost, theirs.MaxCost, state.Rules.MaxCostLimit);
             Redraw();
         }
 
         public void SetTurn(int turnNumber, bool mine) => _turn.text = $"턴 {turnNumber} · {(mine ? "내 차례" : "상대 차례")}";
 
-        /// <summary>연출 중 코스트만 먼저 바꾼다. side 0 = 나.</summary>
-        public void SetCost(int side, int cost, int maxCost)
-        {
-            _lines[side].Cost = cost;
-            _lines[side].MaxCost = maxCost;
-            Redraw();
-        }
+        /// <summary>연출 중 코스트만 먼저 바꾼다 (보석 채움·소모 연출). side 0 = 나.</summary>
+        public void SetCost(int side, int cost, int maxCost) => Gems.Change(side, cost, maxCost);
 
         /// <summary>가운데 알림을 잠깐 띄운다. stay면 지우지 않는다.</summary>
         public IEnumerator Banner(string text, Color color, float duration, bool stay = false)
@@ -160,8 +162,6 @@ namespace TCG.Client.Board
 
         static void Fill(Line line, PlayerState p)
         {
-            line.Cost = p.AvailableCost;
-            line.MaxCost = p.MaxCost;
             line.Hand = p.Hand.Count;
             line.Deck = p.Deck.Count;
         }

@@ -119,6 +119,10 @@ namespace TCG.EditorTools
             {
                 board.HoveredHandCard = card;
                 board.HoverPose(card, out position, out rotation, out scale);
+                // 쓸 코스트 보석 미리보기도 켠다 (에디터 캡처는 Update가 돌지 않아 다시 그린다).
+                board.Hud.Gems.SetPreview(card.Cost);
+                var session = UnityEngine.Object.FindAnyObjectByType<BattleBootstrap>().Session;
+                board.Hud.Refresh(session.State, board.Viewer);
                 // 옆 카드가 비켜난 자리도 바로 보여 준다.
                 for (int i = 0; board.BottomHandCard(i) != null; i++)
                 {

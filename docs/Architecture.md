@@ -38,7 +38,7 @@ youerface-TCG/Assets/
 │  │  └─ Serialization/         JSON 직렬화
 │  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
 │  │  ├─ Battle/                BattleBootstrap(장면 시작점), BattleSession(명령 검증·적용·연출 등록·컴퓨터 차례), SampleData
-│  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView
+│  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView, CostGemsView(코스트 보석)
 │  │  ├─ Cards/                 CardView(보드 위 3D 카드), CardDetailView(크게 보는 uGUI 카드: 키워드 설명·효과 설명), CardPalette
 │  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay, CoinTossOverlay(대전 시작 코인 토스)
 │  │  ├─ Flow/                  BattleLaunch(장면 이동·난이도/시드 전달), TitleScreen(난이도 선택), ResultPanel(결과 화면)

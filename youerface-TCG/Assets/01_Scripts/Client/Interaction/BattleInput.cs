@@ -76,6 +76,15 @@ namespace TCG.Client.Interaction
             _attackPreview = AttackPreview.Create(board.EffectRoot);
         }
 
+        /// <summary>쓸 보석 미리보기: 끌고 있는 카드, 없으면 마우스를 올린 손패 카드의 코스트.</summary>
+        void LateUpdate()
+        {
+            if (_session == null || _board == null)
+                return;
+            var card = _held != null && _board.IsInHand(_held) ? _held : _board.HoveredHandCard;
+            _board.Hud.Gems.SetPreview(card != null && _session.InProgress ? card.Cost : -1);
+        }
+
         void Update()
         {
             if (_session == null || _board == null)
@@ -310,6 +319,9 @@ namespace TCG.Client.Interaction
                 CancelHeld();
                 return;
             }
+            // 코스트가 모자라면 보석 줄을 흔든다 (이유 안내는 아래 검증 실패 문구로).
+            if (entity.Cost > _session.State.GetPlayer(_session.Human).AvailableCost)
+                _board.Hud.Gems.Shake(0);
 
             if (_session.RequiresTarget(entity))
             {
