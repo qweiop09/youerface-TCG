@@ -129,6 +129,9 @@ namespace TCG.Client.Presentation
                     c.Board.ShowcasePose(out var side, out var sideRot, -3.2f);
                     yield return Tween.Move(view.transform, side, sideRot, MoveTime, 0f, Vector3.one * 1.1f);
                 }
+                // 상대가 고른 대상을 화살표로 잠깐 보여 준다 (GameDesign §11.2).
+                if (e.TargetId.HasValue)
+                    yield return PointAt(c, view.transform.position, e.TargetId.Value, OpponentTargetSeconds);
                 yield break;
             }
 
@@ -337,6 +340,9 @@ namespace TCG.Client.Presentation
             var targetPos = c.Board.PositionOf(c.After, e.TargetId) ?? c.Board.PositionOf(c.Before, e.TargetId);
             if (attacker == null || targetPos == null)
                 yield break;
+            // 상대의 공격은 대상을 화살표로 먼저 보여 준다.
+            if (!c.IsMine(attacker.OwnerIndex))
+                yield return PointAt(c, attacker.transform.position, e.TargetId, OpponentAttackArrowSeconds);
             var t = attacker.transform;
             var home = t.localPosition;
             var homeRot = t.localRotation;
@@ -347,6 +353,22 @@ namespace TCG.Client.Presentation
         }
 
         // ------------------------------------------------------------------ 도우미
+
+        const float OpponentTargetSeconds = 0.8f;
+        const float OpponentAttackArrowSeconds = 0.45f;
+
+        /// <summary>from에서 대상(카드·영웅)까지 화살표를 seconds 동안 보여 준다 (연출 배속 적용).</summary>
+        static IEnumerator PointAt(PresentationContext c, Vector3 from, int targetId, float seconds)
+        {
+            var to = c.Board.PositionOf(c.Before, targetId) ?? c.Board.PositionOf(c.After, targetId);
+            if (to == null)
+                yield break;
+            var arrow = Interaction.TargetArrow.Create(c.Board.EffectRoot);
+            arrow.Show(from, to.Value, true);
+            yield return Tween.Wait(seconds);
+            if (arrow != null)
+                Object.Destroy(arrow.gameObject);
+        }
 
         static IEnumerator Float(PresentationContext c, Vector3 worldPos, string text, Color color, float size = 5f, float duration = 0.8f) =>
             FloatingText.Play(c.Board.EffectRoot, c.Board.Camera, text, color, worldPos, size, duration);

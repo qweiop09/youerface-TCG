@@ -36,6 +36,7 @@ namespace TCG.Client.Interaction
         BattleSession _session;
         BoardView _board;
         TargetArrow _arrow;
+        AttackPreview _attackPreview;
         Mode _mode;
         CardView _held;
         CardView _pressed;
@@ -72,6 +73,7 @@ namespace TCG.Client.Interaction
             _session = session;
             _board = board;
             _arrow = TargetArrow.Create(board.EffectRoot);
+            _attackPreview = AttackPreview.Create(board.EffectRoot);
         }
 
         void Update()
@@ -439,7 +441,15 @@ namespace TCG.Client.Interaction
             if (!PointOnPlane(screen, 0.3f, out var point))
                 return;
             int? target = RaycastTarget(screen);
-            _arrow.Show(_held.transform.position, point, target != null && _validTargets.Contains(target.Value));
+            bool valid = target != null && _validTargets.Contains(target.Value);
+            _arrow.Show(_held.transform.position, point, valid);
+
+            // 공격 조준 중 고를 수 있는 대상 위: 예상 피해·처치 미리보기.
+            var targetPos = valid && _mode == Mode.Aiming ? _board.PositionOf(_session.State, target.Value) : null;
+            if (targetPos.HasValue)
+                _attackPreview.Show(_session.State, _held.EntityId, target.Value, _held.transform.position, targetPos.Value);
+            else
+                _attackPreview.Hide();
         }
 
         // ------------------------------------------------------------------ 공통
@@ -464,6 +474,7 @@ namespace TCG.Client.Interaction
             _pressed = null;
             _mode = Mode.Idle;
             _arrow.Hide();
+            _attackPreview.Hide();
             ClearGlow();
             _validTargets.Clear();
         }

@@ -81,7 +81,12 @@ namespace TCG.Core.Events
     {
         public int PlayerIndex { get; }
         public int EntityId { get; }
-        public CardPlayedEvent(int playerIndex, int entityId) { PlayerIndex = playerIndex; EntityId = entityId; }
+        /// <summary>낼 때 고른 대상 (없으면 null). 상대가 무엇을 골랐는지 화살표로 보여 주는 데 쓴다 (GameDesign §11.2).</summary>
+        public int? TargetId { get; }
+        public CardPlayedEvent(int playerIndex, int entityId, int? targetId = null)
+        {
+            PlayerIndex = playerIndex; EntityId = entityId; TargetId = targetId;
+        }
     }
 
     /// <summary>카드가 보드 영역에 등장.</summary>

@@ -39,6 +39,20 @@ namespace TCG.Tests.Core
         }
 
         [Test]
+        public void PlayedEvent_CarriesChosenTarget_AndSurvivesCodec()
+        {
+            var g = new TestGame();
+            var target = g.AddToBoard(1, TestCards.Minion("c_t", 1, 1, 9));
+            g.Play(g.AddToHand(0, TestCards.Spell("c_bolt", 0,
+                TestCards.Effect(TriggerType.OnEnter, TargetType.Chosen, ActionType.Damage, 1))), target: target.Id);
+
+            var played = g.Events<CardPlayedEvent>().Single();
+            Assert.That(played.TargetId, Is.EqualTo(target.Id));
+            var back = (CardPlayedEvent)TCG.Core.Net.EventCodec.Decode(TCG.Core.Net.EventCodec.Encode(played));
+            Assert.That(back.TargetId, Is.EqualTo(target.Id));
+        }
+
+        [Test]
         public void PlayMinion_OccupiedOrMissingSlot_IsRejected()
         {
             var g = new TestGame();

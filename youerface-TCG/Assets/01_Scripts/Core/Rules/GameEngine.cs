@@ -306,7 +306,7 @@ namespace TCG.Core.Rules
             player.AvailableCost -= card.Cost;
             ctx.Emit(new CostChangedEvent(player.Index, player.MaxCost, player.AvailableCost));
             player.Hand.Remove(card);
-            ctx.Emit(new CardPlayedEvent(player.Index, card.Id));
+            ctx.Emit(new CardPlayedEvent(player.Index, card.Id, cmd.TargetId));
 
             ctx.CollectBoardTriggers(player.Index, TriggerType.OnCardPlayed);
 
