@@ -20,6 +20,8 @@ namespace TCG.Core.Data
             AddIfAny(card.Art?.Image, result);
             AddIfAny(card.Sounds?.Enter, result);
             AddIfAny(card.Sounds?.Exit, result);
+            AddIfAny(card.Sounds?.Attack, result);
+            AddIfAny(card.Sounds?.Damaged, result);
             if (card.Effects == null)
                 return;
             for (int i = 0; i < card.Effects.Count; i++)

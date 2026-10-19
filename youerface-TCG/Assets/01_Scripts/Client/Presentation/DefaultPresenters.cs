@@ -250,6 +250,7 @@ namespace TCG.Client.Presentation
             if (card != null)
             {
                 card.AddHealth(-e.Amount);
+                c.Board.Sounds?.PlayDamaged(card.Definition);
                 target = card.transform;
             }
             else if (hero != null)
@@ -349,6 +350,7 @@ namespace TCG.Client.Presentation
             // 상대의 공격은 대상을 화살표로 먼저 보여 준다.
             if (!c.IsMine(attacker.OwnerIndex))
                 yield return PointAt(c, attacker.transform.position, e.TargetId, OpponentAttackArrowSeconds);
+            c.Board.Sounds?.PlayAttack(attacker.Definition);
             var t = attacker.transform;
             var home = t.localPosition;
             var homeRot = t.localRotation;

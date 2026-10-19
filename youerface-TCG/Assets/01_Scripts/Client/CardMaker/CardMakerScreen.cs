@@ -248,18 +248,77 @@ namespace TCG.Client.CardMaker
                 f.Buttons("", ("다른 그림", () => ImportArt(card)), ("그림 지우기", () => { card.Art.Image = null; Changed(); }));
 
             f.Header("사운드");
-            f.Note($"OGG·WAV, {limits.MaxSoundMilliseconds / 1000f:0.#}초 이하.", MutedColor, 22);
+            f.Note($"OGG·WAV 파일을 가져오거나 바로 녹음. {limits.MaxSoundMilliseconds / 1000f:0.#}초 이하.", MutedColor, 22);
             SoundRow(f, "등장음", card.Sounds.Enter, h => card.Sounds.Enter = h);
             SoundRow(f, "퇴장음", card.Sounds.Exit, h => card.Sounds.Exit = h);
+            // 공격·피격은 기물만 한다.
+            if (card.Type == CardType.Minion)
+            {
+                SoundRow(f, "공격음", card.Sounds.Attack, h => card.Sounds.Attack = h);
+                SoundRow(f, "피격음", card.Sounds.Damaged, h => card.Sounds.Damaged = h);
+            }
             f.Finish();
         }
 
         void SoundRow(FormColumn f, string label, string hash, Action<string> set)
         {
+            // 이 줄이 녹음 중이면 정지 버튼만.
+            if (Recorder.IsRecording && _recordingLabel == label)
+            {
+                f.Buttons(label, ("■ 정지", StopRecording));
+                return;
+            }
             if (string.IsNullOrEmpty(hash))
-                f.Buttons(label, ("가져오기", () => ImportSound(set)));
+                f.Buttons(label, ("가져오기", () => ImportSound(set)), ("● 녹음", () => StartRecording(label, set)));
             else
-                f.Buttons(label, ("▶ 듣기", () => PlaySound(hash)), ("바꾸기", () => ImportSound(set)), ("지우기", () => { set(null); Changed(); }));
+                f.Buttons(label, ("▶ 듣기", () => PlaySound(hash)), ("바꾸기", () => ImportSound(set)),
+                    ("● 녹음", () => StartRecording(label, set)), ("지우기", () => { set(null); Changed(); }));
+        }
+
+        // ------------------------------------------------------------------ 녹음
+
+        SoundRecorder _recorder;
+        string _recordingLabel;
+
+        SoundRecorder Recorder => _recorder != null ? _recorder : _recorder = gameObject.AddComponent<SoundRecorder>();
+
+        void StartRecording(string label, Action<string> set)
+        {
+            if (Recorder.IsRecording)
+                return;
+            _recordingLabel = label;
+            SetStatus("마이크 준비 중…");
+            Recorder.Begin((hash, error) =>
+            {
+                _recordingLabel = null;
+                if (hash == null)
+                {
+                    SetStatus(error);
+                    Rebuild();
+                    return;
+                }
+                set(hash);
+                SetStatus($"{label}을(를) 녹음해 저장했습니다.");
+                Changed();
+            });
+            StartCoroutine(RebuildWhenRecording());
+        }
+
+        /// <summary>권한 확인이 끝나 녹음이 실제로 시작되면 정지 버튼으로 바꾼다.</summary>
+        System.Collections.IEnumerator RebuildWhenRecording()
+        {
+            for (float t = 0; t < 10f && !Recorder.IsRecording && _recordingLabel != null; t += Time.unscaledDeltaTime)
+                yield return null;
+            if (Recorder.IsRecording)
+                Rebuild();
+        }
+
+        void StopRecording() => Recorder.Stop();
+
+        void LateUpdate()
+        {
+            if (_recorder != null && _recorder.IsRecording)
+                SetStatus($"● 녹음 중 ({_recordingLabel})  {_recorder.Elapsed:0.0} / {_recorder.MaxSeconds:0.#}초 — 정지를 누르거나 시간이 다 되면 저장");
         }
 
         // ------------------------------------------------------------------ 오른쪽: 효과

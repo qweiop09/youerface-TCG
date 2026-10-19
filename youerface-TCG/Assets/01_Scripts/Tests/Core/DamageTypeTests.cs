@@ -157,7 +157,7 @@ namespace TCG.Tests.Core
             Assert.That(card.Effects[1].Trigger.Type, Is.EqualTo(TriggerType.OnEnter));
             Assert.That(card.Effects[1].Action.Summon.Effects[0].Trigger.Type, Is.EqualTo(TriggerType.OnAnyDamageTaken));
             Assert.That(card.Flavor, Is.Null);
-            Assert.That(JObject.Parse(CardSerializer.Serialize(card))["schemaVersion"].Value<int>(), Is.EqualTo(3));
+            Assert.That(JObject.Parse(CardSerializer.Serialize(card))["schemaVersion"].Value<int>(), Is.EqualTo(CardSerializer.CurrentSchemaVersion));
         }
 
         [Test]

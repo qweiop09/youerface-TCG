@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "s_war_banner",
   "name": "전쟁 깃발",
   "type": "Field",

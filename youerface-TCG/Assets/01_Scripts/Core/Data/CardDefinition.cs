@@ -40,12 +40,16 @@ namespace TCG.Core.Data
         public string Image { get; set; }
     }
 
-    /// <summary>카드 사운드. 내용 해시로 참조한다.</summary>
+    /// <summary>카드 사운드. 내용 해시로 참조한다. 파일 가져오기 또는 카드 제작기에서 바로 녹음 (OGG·WAV, 5초 이하).</summary>
     public sealed class CardSounds
     {
         /// <summary>등장(소환/발동)</summary>
         public string Enter { get; set; }
         /// <summary>퇴장(사망/파괴/교체)</summary>
         public string Exit { get; set; }
+        /// <summary>공격할 때 (기물 전용, 스키마 v4)</summary>
+        public string Attack { get; set; }
+        /// <summary>피해를 받을 때 = 피격 (기물 전용, 스키마 v4)</summary>
+        public string Damaged { get; set; }
     }
 }

@@ -194,5 +194,34 @@ namespace TCG.Tests.Core
             Assert.That(restored.Effects[0].Presentation.Enabled, Is.False);
             Assert.That(restored.Effects[0].Presentation.HitMode, Is.EqualTo(HitPresentationMode.Sequential));
         }
+
+        [Test]
+        public void RoundTrip_AttackAndDamagedSounds_AndAssetRefs()
+        {
+            var card = TestCards.FireSpirit();
+            card.Sounds.Attack = "sha256:aa";
+            card.Sounds.Damaged = "sha256:bb";
+
+            var restored = CardSerializer.Deserialize(CardSerializer.Serialize(card));
+
+            Assert.That(restored.Sounds.Attack, Is.EqualTo("sha256:aa"));
+            Assert.That(restored.Sounds.Damaged, Is.EqualTo("sha256:bb"));
+            Assert.That(CardAssetRefs.Collect(restored), Does.Contain("sha256:aa").And.Contain("sha256:bb"));
+        }
+
+        [Test]
+        public void ChangingTypeAwayFromMinion_ClearsAttackAndDamagedSounds()
+        {
+            var card = TestCards.FireSpirit();
+            card.Sounds.Attack = "sha256:aa";
+            card.Sounds.Damaged = "sha256:bb";
+            card.Sounds.Enter = "sha256:cc";
+
+            CardEditing.SetType(card, CardType.Spell);
+
+            Assert.That(card.Sounds.Attack, Is.Null);
+            Assert.That(card.Sounds.Damaged, Is.Null);
+            Assert.That(card.Sounds.Enter, Is.EqualTo("sha256:cc"));
+        }
     }
 }

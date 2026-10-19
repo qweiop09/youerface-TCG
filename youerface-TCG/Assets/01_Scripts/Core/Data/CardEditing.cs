@@ -66,6 +66,12 @@ namespace TCG.Core.Data
             {
                 card.Attack = null;
                 card.Health = null;
+                // 공격음·피격음은 기물만 쓴다.
+                if (card.Sounds != null)
+                {
+                    card.Sounds.Attack = null;
+                    card.Sounds.Damaged = null;
+                }
             }
 
             switch (card.Type)

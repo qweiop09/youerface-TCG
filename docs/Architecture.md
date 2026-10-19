@@ -97,7 +97,7 @@ youerface-TCG/Assets/
   "health": 2,
   "keywords": ["Taunt"],
   "art":    { "image": "sha256:ab12..." },
-  "sounds": { "enter": "sha256:cd34...", "exit": "sha256:ef56..." },
+  "sounds": { "enter": "sha256:cd34...", "exit": "sha256:ef56...", "attack": "sha256:...", "damaged": "sha256:..." },
   "presentation": { "enter": "default", "exit": "default" },
   "flavor": "용암 틈에서 처음 눈을 떴다.",
   "effects": [
@@ -131,7 +131,7 @@ youerface-TCG/Assets/
 - 스키마 v2 → v3 (M5.5-0): 트리거 `OnDamaged`(피격 시) → `OnAnyDamageTaken`(모든 피해를 받을 때), 중첩 소환물 포함. 새 선택 칸 `flavor`(카드 설명, 점수·규칙 무관, 없으면 생략). 저장된 내 카드는 읽을 때 변환되고 다음 저장 때 v3로 쓰인다.
 - `flavor` 글자 수: `RuleConfig.MaxFlavorLength`(제안값 100, `string.Length` 기준·줄바꿈 포함), `CardValidator.Validate(card, registry, rules)`가 검사(소환물 포함).
 - 트리거 열거형(`TriggerType`): `OnEnter` `OnExit` `OnTurnStart` `OnTurnEnd` `OnAttack` `OnCardPlayed` `Aura` + 피해 6종 `OnEffectDamageTaken` `OnCombatDamageTaken` `OnAnyDamageTaken` `OnEffectDamageDealt` `OnCombatDamageDealt` `OnAnyDamageDealt` (GameDesign §7.6).
-- 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다.
+- 사운드는 일반화해 `enter`(등장: 소환/발동) / `exit`(퇴장: 사망/파괴/교체)로 둔다. 스키마 v4(2026-10-19): `attack`(공격할 때)·`damaged`(피해를 받을 때) 추가 — 기물만, 종류를 바꾸면 `CardEditing.SetType`이 지운다. 기존 카드는 변환할 것 없음. 에셋 전송 목록(`CardAssetRefs`)에도 포함.
 - 스키마 변경 시 `schemaVersion`을 올리고 마이그레이션 코드를 둔다.
 
 ## 4.1 규칙 엔진 처리 순서 (M2.5 체인 기준)
@@ -253,6 +253,7 @@ youerface-TCG/Assets/
 - `IFilePicker` → `StandaloneFilePicker`: OS 기본 창. 패키지 `Packages/io.github.gkngkc.unity-standalone-file-browser`(OpenUPM 1.3.4, MIT, 맥 universal 바이너리)를 임베디드로 넣음. 원본 gkngkc 1.2는 맥 x86_64 전용이라 Apple Silicon에서 안 됨. 네이티브 실패 시 에디터는 `EditorUtility.OpenFilePanelWithFilters`로 대신. 모바일은 나중에(M7) 구현 교체.
 - `IUserAssetStore` → `LocalUserAssetStore`: `persistentDataPath/UserAssets/<hex>.<확장자>`. 같은 내용은 다시 쓰지 않음(임시 파일 → 이동).
 - `UserAssetImporter`: 이미지 `LoadSourceImage`(PNG·JPG, 크기 제한 없음, GPU 최대 텍스처 크기만) → `ArtCropDialog`(끌기·휠·+/−, 창에 보이는 그대로 저장) → `SaveArt`(Blit으로 잘라 줄이고 JPG). 사운드 `ImportSound`(OGG·WAV, `UnityWebRequestMultimedia`로 읽어 길이 검사, 원본 바이트 저장).
+- 녹음: `SoundRecorder`(카드 제작기 "● 녹음" → "■ 정지", 마이크 권한 요청, `AssetLimits.MaxSoundMilliseconds`가 되면 자동 정지) → `WavEncoder`(16비트 PCM WAV) → 저장소 `Put(.., "wav")`. 녹음한 소리도 파일로 가져온 소리와 똑같이 내용 해시로 참조한다. 대전에서는 `CardSoundPlayer`가 공격(`AttackEvent`)·피격(기물의 `DamageDealtEvent`)에 재생.
 - `UserAssetCache`: 해시 → Texture2D(동기) / AudioClip(코루틴으로 미리 읽음). `UserAssetService`가 저장소·캐시·가져오기·파일 창을 하나씩 들고 있음.
 - 대전 적용: `CardView`(그림 판 Quad, 위쪽 +Z), `CardDetailView`(그림 칸에 6:5 RawImage), `CardSoundPlayer`(BattleBootstrap이 덱 사운드를 미리 읽음, `CardEntered`·`SpellCast`에서 등장음, `CardExited`에서 퇴장음). 그림·사운드가 없거나 저장소에 없으면 기존 표시·무음.
 - 나중에 서버 업로드를 붙여도 해시 참조 구조를 그대로 쓴다.
