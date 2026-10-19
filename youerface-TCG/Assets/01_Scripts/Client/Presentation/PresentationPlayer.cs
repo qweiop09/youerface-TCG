@@ -37,12 +37,16 @@ namespace TCG.Client.Presentation
         public int BatchesQueued { get; private set; }
         public int BatchesPlayed { get; private set; }
         public int TotalDrift { get; private set; }
+        /// <summary>이벤트 하나의 연출을 시작할 때 (행동 기록·체인 표시가 연출 순서를 따라가게).</summary>
+        public event System.Action<PresentationContext, GameEvent> EventStarting;
 
         public void Init(BoardView board, PresenterRegistry presenters = null, EffectRegistry effects = null)
         {
             _board = board;
             _presenters = presenters ?? PresenterRegistry.CreateDefault();
             _effects = effects ?? EffectRegistry.Default;
+            EventStarting += board.Hud.Log.Record;
+            EventStarting += board.Hud.Chain.Record;
         }
 
         /// <summary>before·after는 이후 바뀌지 않는 복사본을 넘긴다 (GameState.Clone).</summary>
@@ -120,6 +124,7 @@ namespace TCG.Client.Presentation
 
         IEnumerator Play(PresentationContext context, GameEvent e)
         {
+            EventStarting?.Invoke(context, e);
             var presenter = _presenters.Find(e.GetType(), StyleOf(context, e));
             return presenter == null ? null : Tween.Safe(presenter.Play(context, e));
         }

@@ -58,6 +58,8 @@ namespace TCG.Client.Board
             view._online.rectTransform.sizeDelta = new Vector2(1200, 80);
             view._online.text = "";
             view.Gems = CostGemsView.Create(go.transform);
+            view.Log = BattleLogPanel.Create(go.transform);
+            view.Chain = ChainStackView.Create(go.transform);
             view.BigCard = BigCardOverlay.Create(go.transform);
             view.Inspect = CardInspectOverlay.Create(go.transform);
             view.CoinToss = CoinTossOverlay.Create(go.transform);
@@ -88,6 +90,10 @@ namespace TCG.Client.Board
         public CardInspectOverlay Inspect { get; private set; }
         /// <summary>코스트 보석 (오른쪽 아래 = 나, 오른쪽 위 = 상대).</summary>
         public CostGemsView Gems { get; private set; }
+        /// <summary>행동 기록 패널 (왼쪽).</summary>
+        public BattleLogPanel Log { get; private set; }
+        /// <summary>체인 표시 (왼쪽 아래).</summary>
+        public ChainStackView Chain { get; private set; }
         /// <summary>대전 시작 코인 토스.</summary>
         public CoinTossOverlay CoinToss { get; private set; }
 

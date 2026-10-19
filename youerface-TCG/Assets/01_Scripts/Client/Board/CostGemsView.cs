@@ -97,7 +97,7 @@ namespace TCG.Client.Board
             if (row.Gems.Length == count)
                 return;
             foreach (var gem in row.Gems)
-                Destroy(gem.Root.gameObject);
+                Shapes.DestroyImmediateOrDeferred(gem.Root.gameObject);
             row.Gems = new Gem[count];
             row.Root.sizeDelta = new Vector2(NumberWidth + GemStep * count, 48f);
             for (int i = 0; i < count; i++)

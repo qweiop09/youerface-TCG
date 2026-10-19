@@ -38,9 +38,9 @@ youerface-TCG/Assets/
 │  │  └─ Serialization/         JSON 직렬화
 │  ├─ Client/                   TCG.Client.asmdef    (Core, TextMeshPro 참조)
 │  │  ├─ Battle/                BattleBootstrap(장면 시작점), BattleSession(명령 검증·적용·연출 등록·컴퓨터 차례), SampleData
-│  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView, CostGemsView(코스트 보석)
+│  │  ├─ Board/                 BoardLayout(칸 위치), BoardView(테이블·칸·카드 배치), HeroView, PileView(덱), HudView, CostGemsView(코스트 보석), BattleLogPanel(행동 기록), ChainStackView(체인 표시)
 │  │  ├─ Cards/                 CardView(보드 위 3D 카드), CardDetailView(크게 보는 uGUI 카드: 키워드 설명·효과 설명), CardPalette
-│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay, CoinTossOverlay(대전 시작 코인 토스)
+│  │  ├─ Presentation/          PresentationPlayer(재생기), PresenterRegistry, DefaultPresenters, Tween, FloatingText, BigCardOverlay, CoinTossOverlay(대전 시작 코인 토스), BattleLogText(이벤트 → 기록 문장; `PresentationPlayer.EventStarting`으로 연출 순서대로 기록)
 │  │  ├─ Flow/                  BattleLaunch(장면 이동·난이도/시드 전달), TitleScreen(난이도 선택), ResultPanel(결과 화면)
 │  │  ├─ Interaction/           BattleInput(포인터: 카드 끌어 내기·대상 지정·공격 화살표), TargetArrow, DecisionPanel(체인 선택 창)
 │  │  ├─ CardMaker/             CardMakerScreen(카드 제작 화면), FormColumn(편집 줄 쌓기), LocalCardLibrary(내 카드 JSON)  ※ 폴더명 "Editor" 금지(Unity 특수 폴더)

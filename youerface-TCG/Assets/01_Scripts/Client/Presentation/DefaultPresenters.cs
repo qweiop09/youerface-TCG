@@ -24,7 +24,7 @@ namespace TCG.Client.Presentation
 
         public static void RegisterAll(PresenterRegistry r)
         {
-            r.Register<GameStartedEvent>((c, e) => c.Board.Hud.CoinToss.Play(c.IsMine(e.FirstPlayerIndex), c.After.Rules));
+            r.Register<GameStartedEvent>(GameStarted);
             r.Register<TurnStartedEvent>(TurnStarted);
             r.Register<CostChangedEvent>(CostChanged);
             r.Register<CardDrawnEvent>(Drawn);
@@ -50,6 +50,12 @@ namespace TCG.Client.Presentation
         }
 
         // ------------------------------------------------------------------ 턴
+
+        static IEnumerator GameStarted(PresentationContext c, GameStartedEvent e)
+        {
+            yield return c.Board.Hud.CoinToss.Play(c.IsMine(e.FirstPlayerIndex), c.After.Rules);
+            c.Board.Hud.Log.FlushDeferred(c, e.FirstPlayerIndex);
+        }
 
         static IEnumerator TurnStarted(PresentationContext c, TurnStartedEvent e)
         {

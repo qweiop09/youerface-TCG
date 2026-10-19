@@ -86,6 +86,11 @@ namespace TCG.EditorTools
 
         static void ApplyPose(TCG.Client.Board.BoardView board, string pose)
         {
+            if (pose == "chain")
+            {
+                ChainSample(board);
+                return;
+            }
             if (pose == "coin")
             {
                 // 코인 토스 결과 화면 (steps 0이면 지금 차례 = 선공).
@@ -140,6 +145,26 @@ namespace TCG.EditorTools
                 return;
             card.transform.SetPositionAndRotation(position, rotation);
             card.transform.localScale = Vector3.one * scale;
+        }
+
+        /// <summary>체인 표시 확인용: 보드 위 카드(양쪽 번갈아) 최대 3장을 체인 1·2·3으로 올리고 마지막 것을 처리 중으로.</summary>
+        static void ChainSample(TCG.Client.Board.BoardView board)
+        {
+            var bootstrap = UnityEngine.Object.FindAnyObjectByType<BattleBootstrap>();
+            var state = bootstrap.Session.State;
+            var context = new TCG.Client.Presentation.PresentationContext(board, state, state, TCG.Core.Effects.EffectRegistry.Default, bootstrap);
+            var sources = new System.Collections.Generic.List<TCG.Core.State.Entity>();
+            for (int p = 0; p < TCG.Core.State.GameState.PlayerCount; p++)
+                foreach (var zone in state.GetPlayer(p).Zones)
+                    foreach (var e in zone.Entities)
+                        if (e.IsOnBoard && sources.Count < 3)
+                            sources.Add(e);
+            for (int i = 0; i < sources.Count; i++)
+                board.Hud.Chain.Record(context, new TCG.Core.Events.EffectActivatedEvent(i + 1, sources[i].Id, 0, sources[i].OwnerIndex,
+                    TCG.Core.Data.TriggerType.OnEnter, TCG.Core.Data.ActionType.Damage));
+            if (sources.Count > 0)
+                board.Hud.Chain.Record(context, new TCG.Core.Events.EffectResolvingEvent(sources.Count, sources[sources.Count - 1].Id, 0,
+                    TCG.Core.Data.ActionType.Damage));
         }
 
         /// <summary>

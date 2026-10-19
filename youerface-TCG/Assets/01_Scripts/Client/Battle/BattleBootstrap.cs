@@ -9,6 +9,7 @@ using TCG.Client.UserAssets;
 using TCG.Core.AI;
 using TCG.Core.Commands;
 using TCG.Core.Data;
+using TCG.Core.Effects;
 using TCG.Core.Events;
 using TCG.Core.Net;
 using TCG.Core.Rules;
@@ -133,10 +134,14 @@ namespace TCG.Client.Battle
             var ai = new[] { AiPlayers.Create(_bottomAi, _seed, engine), AiPlayers.Create(_topAi, _seed + 1, engine) };
             var state = new GameState(RuleConfig.CreateDefault(), _seed);
             var startEvents = engine.StartGame(state, deck0, deck1);
+            // 미리 진행(화면 캡처용): 행동 기록·체인 표시에 넣을 수 있게 단계별 이벤트를 남긴다.
+            var previewHistory = new List<(IReadOnlyList<GameEvent> events, GameState before, GameState after)>();
             for (int i = 0; i < _previewSteps && state.Phase == GamePhase.InProgress; i++)
             {
                 int mover = state.Decision?.PlayerIndex ?? state.ActivePlayerIndex;
-                engine.Apply(state, ai[mover].ChooseCommand(state, mover));
+                var stepBefore = state.Clone();
+                var stepEvents = engine.Apply(state, ai[mover].ChooseCommand(state, mover));
+                previewHistory.Add((stepEvents, stepBefore, state.Clone()));
             }
 
             Board = BoardView.Create(_root, camera, Viewer);
@@ -147,6 +152,15 @@ namespace TCG.Client.Battle
             Player = _root.gameObject.AddComponent<PresentationPlayer>();
             Player.Init(Board);
             PresentationTime.Speed = _speed;
+            foreach (var (events, before, after) in previewHistory)
+            {
+                var context = new PresentationContext(Board, before, after, EffectRegistry.Default, this);
+                foreach (var e in events)
+                {
+                    Board.Hud.Log.Record(context, e);
+                    Board.Hud.Chain.Record(context, e);
+                }
+            }
 
             Session = new BattleSession(state, engine, Player, Viewer, ai) { Spectate = _spectate };
 
@@ -219,6 +233,7 @@ namespace TCG.Client.Battle
             {
                 if (startEvents[i] is GameStartedEvent started)
                 {
+                    Board.Hud.Log.Defer(startEvents);
                     Player.Enqueue(new GameEvent[] { started }, state.Clone(), state.Clone());
                     return;
                 }
