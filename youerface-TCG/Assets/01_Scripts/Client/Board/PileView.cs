@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace TCG.Client.Board
 {
-    /// <summary>덱 더미: 장수만큼 두께가 있는 카드 뒷면 + 장수. 묘지·소멸 장수도 함께 적는다.</summary>
+    /// <summary>덱 더미: 장수만큼 두께가 있는 카드 뒷면 + 장수.</summary>
     public sealed class PileView : MonoBehaviour
     {
         Transform _stack;
@@ -32,7 +32,7 @@ namespace TCG.Client.Board
             _stack.gameObject.SetActive(deck > 0);
             _count.transform.localPosition = new Vector3(0, height + 0.01f, 0);
             _count.text = deck.ToString();
-            _info.text = $"묘지 {graveyard} · 소멸 {exile}";
+            _info.text = "덱"; // 묘지·제외는 옆의 GraveView가 따로 보여 준다
         }
     }
 }

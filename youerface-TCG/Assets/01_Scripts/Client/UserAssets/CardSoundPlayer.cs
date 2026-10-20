@@ -34,13 +34,37 @@ namespace TCG.Client.UserAssets
         public void PlayAttack(CardDefinition card) => Play(card?.Sounds?.Attack);
         public void PlayDamaged(CardDefinition card) => Play(card?.Sounds?.Damaged);
 
+        // 전투처럼 공격음 → 피격음 → 사망음(퇴장음)이 한꺼번에 나오면 서로 묻히므로, 카드 소리는 대기열로 차례로 낸다.
+        // 다음 소리는 앞 소리가 시작한 뒤 min(앞 소리 길이, MaxSpacing) + Gap 이 지나야 시작한다 (실제 시간, 연출 배속과 무관).
+        /// <summary>앞 소리를 기다리는 최대 시간 (긴 소리 때문에 다음 소리가 너무 늦어지지 않게).</summary>
+        public const float MaxSpacing = 0.6f;
+        /// <summary>소리 사이 틈.</summary>
+        public const float Gap = 0.12f;
+        /// <summary>이보다 오래 밀린 소리는 버린다 (연출과 너무 어긋나지 않게).</summary>
+        const float MaxQueueDelay = 2f;
+
+        readonly Queue<(AudioClip clip, float queuedAt)> _queue = new Queue<(AudioClip, float)>();
+        float _nextAllowed;
+
         void Play(string hash)
         {
             if (_source == null)
                 return;
             var clip = UserAssetService.Cache.Clip(hash);
             if (clip != null)
+                _queue.Enqueue((clip, Time.unscaledTime));
+        }
+
+        void Update()
+        {
+            while (_queue.Count > 0 && Time.unscaledTime >= _nextAllowed)
+            {
+                var (clip, queuedAt) = _queue.Dequeue();
+                if (clip == null || Time.unscaledTime - queuedAt > MaxQueueDelay)
+                    continue;
                 _source.PlayOneShot(clip);
+                _nextAllowed = Time.unscaledTime + Mathf.Min(clip.length, MaxSpacing) + Gap;
+            }
         }
 
         static void CollectSounds(CardDefinition card, List<string> result)

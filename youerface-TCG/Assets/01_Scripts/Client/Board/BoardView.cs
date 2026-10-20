@@ -30,6 +30,8 @@ namespace TCG.Client.Board
         };
         readonly HeroView[] _heroes = new HeroView[2];
         readonly PileView[] _piles = new PileView[2];
+        readonly GraveView[] _graves = new GraveView[2];
+        readonly GraveView[] _exiles = new GraveView[2];
         Transform _cardRoot;
 
         public Camera Camera { get; private set; }
@@ -88,6 +90,9 @@ namespace TCG.Client.Board
                 _heroes[side] = HeroView.Create(transform, bottom ? Viewer : 1 - Viewer, bottom ? "나" : "상대", BoardLayout.Hero(bottom),
                     bottom ? new Color(0.25f, 0.42f, 0.62f) : new Color(0.62f, 0.27f, 0.25f));
                 _piles[side] = PileView.Create(transform, BoardLayout.Deck(bottom));
+                int owner = bottom ? Viewer : 1 - Viewer;
+                _graves[side] = GraveView.Create(transform, BoardLayout.Graveyard(bottom), owner, ZoneType.Graveyard);
+                _exiles[side] = GraveView.Create(transform, BoardLayout.Exile(bottom), owner, ZoneType.Exile);
             }
 
             _cardRoot = new GameObject("Cards").transform;
@@ -113,10 +118,15 @@ namespace TCG.Client.Board
 
         // ------------------------------------------------------------------ 조회
 
+        static Entity Last(Zone zone) => zone.Count > 0 ? zone.Entities[zone.Count - 1] : null;
+
         /// <summary>0 = 화면 아래(나), 1 = 위(상대).</summary>
         public int SideOf(int ownerIndex) => ownerIndex == Viewer ? 0 : 1;
         public HeroView HeroOf(int ownerIndex) => _heroes[SideOf(ownerIndex)];
         public PileView PileOf(int ownerIndex) => _piles[SideOf(ownerIndex)];
+        /// <summary>묘지(<see cref="ZoneType.Graveyard"/>) 또는 제외(<see cref="ZoneType.Exile"/>) 더미.</summary>
+        public GraveView GraveOf(int ownerIndex, ZoneType zone) =>
+            zone == ZoneType.Exile ? _exiles[SideOf(ownerIndex)] : _graves[SideOf(ownerIndex)];
         public Vector3 DeckPosition(int ownerIndex) => BoardLayout.Deck(SideOf(ownerIndex) == 0) + Vector3.up * 0.4f;
         public Vector3 HeroPosition(int ownerIndex) => BoardLayout.Hero(SideOf(ownerIndex) == 0);
         public IReadOnlyCollection<CardView> AllCards => _cards.Values;
@@ -440,6 +450,8 @@ namespace TCG.Client.Board
                 if (_heroes[side].Refresh(player.Hero))
                     drift++;
                 _piles[side].Refresh(player.Deck.Count, player.Graveyard.Count, player.Exile.Count);
+                _graves[side].Refresh(Last(player.Graveyard), player.Graveyard.Count);
+                _exiles[side].Refresh(Last(player.Exile), player.Exile.Count);
             }
 
             var stale = new List<int>();

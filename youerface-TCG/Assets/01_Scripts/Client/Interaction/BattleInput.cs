@@ -52,13 +52,15 @@ namespace TCG.Client.Interaction
 
         /// <summary>
         /// ESC 우선순위 (GameDesign §11.2): Esc·오른쪽 클릭은 진행 중인 동작(끌기·대상 지정·공격 조준, 카드 확인 창)을 먼저 취소한다.
+        /// 묘지 목록 창도 Esc로 먼저 닫힌다(<see cref="Presentation.PileListOverlay.ClosedFrame"/>).
         /// 취소한 프레임을 남겨, 나중에 붙는 ESC 메뉴(M5.5-2)는 <see cref="CancelConsumedThisFrame"/>가 false일 때만 열린다.
         /// </summary>
         public int CancelConsumedFrame { get; private set; } = -1;
 
         /// <summary>이번 프레임의 Esc를 취소에 썼는가 (BattleInput 또는 카드 확인 창).</summary>
         public bool CancelConsumedThisFrame =>
-            CancelConsumedFrame == Time.frameCount || (_board != null && _board.Hud.Inspect.ClosedFrame == Time.frameCount);
+            CancelConsumedFrame == Time.frameCount || (_board != null && (_board.Hud.Inspect.ClosedFrame == Time.frameCount
+                                                                         || _board.Hud.Piles.ClosedFrame == Time.frameCount));
 
         void ConsumeCancel() => CancelConsumedFrame = Time.frameCount;
 
@@ -101,7 +103,9 @@ namespace TCG.Client.Interaction
 
             // 카드 확인 창이 열려 있거나 이번 프레임에 닫혔으면 보드 입력을 받지 않는다.
             var inspect = _board.Hud.Inspect;
-            if (_mode == Mode.Idle && (inspect.IsOpen || inspect.ClosedFrame == Time.frameCount))
+            var piles = _board.Hud.Piles;
+            if (_mode == Mode.Idle && (inspect.IsOpen || inspect.ClosedFrame == Time.frameCount
+                                       || piles.IsOpen || piles.ClosedFrame == Time.frameCount))
             {
                 ClearHover();
                 return;
@@ -189,7 +193,16 @@ namespace TCG.Client.Interaction
         {
             var card = RaycastCard(screen);
             if (card == null)
+            {
+                // 묘지·제외 더미를 누르면 목록 창 (양쪽 모두 공개 정보).
+                var pile = RaycastGrave(screen);
+                if (pile != null)
+                {
+                    ClearHover();
+                    _board.Hud.Piles.Show(_session.State, pile.OwnerIndex, pile.Zone, pile.OwnerIndex == _session.Human);
+                }
                 return;
+            }
             _pressPos = screen;
             _pressTime = Time.unscaledTime;
 
@@ -515,6 +528,18 @@ namespace TCG.Client.Interaction
                 }
             }
             return best;
+        }
+
+        GraveView RaycastGrave(Vector2 screen)
+        {
+            var ray = _board.Camera.ScreenPointToRay(screen);
+            foreach (var hit in Physics.RaycastAll(ray, 100f))
+            {
+                var pile = hit.collider.GetComponentInParent<GraveView>();
+                if (pile != null)
+                    return pile;
+            }
+            return null;
         }
 
         /// <summary>포인터 아래의 대상 ID (카드 또는 영웅).</summary>

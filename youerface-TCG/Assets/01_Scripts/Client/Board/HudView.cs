@@ -62,6 +62,7 @@ namespace TCG.Client.Board
             view.Chain = ChainStackView.Create(go.transform);
             view.BigCard = BigCardOverlay.Create(go.transform);
             view.Inspect = CardInspectOverlay.Create(go.transform);
+            view.Piles = PileListOverlay.Create(go.transform, view.Inspect);
             view.CoinToss = CoinTossOverlay.Create(go.transform);
             return view;
         }
@@ -88,6 +89,8 @@ namespace TCG.Client.Board
         public BigCardOverlay BigCard { get; private set; }
         /// <summary>카드 확인 (짧은 클릭으로 크게 보기).</summary>
         public CardInspectOverlay Inspect { get; private set; }
+        /// <summary>묘지·제외 목록 창 (보드의 더미를 누르면).</summary>
+        public PileListOverlay Piles { get; private set; }
         /// <summary>코스트 보석 (오른쪽 아래 = 나, 오른쪽 위 = 상대).</summary>
         public CostGemsView Gems { get; private set; }
         /// <summary>행동 기록 패널 (왼쪽).</summary>

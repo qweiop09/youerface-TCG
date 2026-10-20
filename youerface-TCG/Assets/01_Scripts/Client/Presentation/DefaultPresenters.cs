@@ -93,7 +93,7 @@ namespace TCG.Client.Presentation
             var raised = c.Board.DeckPosition(e.PlayerIndex) + new Vector3(-1.2f, 1.2f, 0);
             yield return Tween.Move(view.transform, raised, view.transform.localRotation, MoveTime, 0.3f);
             yield return Float(c, raised, "소멸", InfoText);
-            yield return Vanish(c, view);
+            yield return ToPile(c, view, e.EntityId);
         }
 
         static IEnumerator Discarded(PresentationContext c, CardDiscardedEvent e)
@@ -107,7 +107,7 @@ namespace TCG.Client.Presentation
                 Tween.Move(view.transform, from + Vector3.up * 1.2f, view.transform.localRotation, MoveTime),
                 c.Board.Layout(e.PlayerIndex, MoveTime),
             });
-            yield return Vanish(c, view);
+            yield return ToPile(c, view, e.EntityId);
         }
 
         // ------------------------------------------------------------------ 카드 내기
@@ -234,8 +234,9 @@ namespace TCG.Client.Presentation
         static IEnumerator ClearLingering(PresentationContext c)
         {
             var routines = new List<IEnumerator>();
+            // 사용한 주문은 묘지로, 일회성은 제외로 (실제 상태가 간 곳).
             foreach (var view in c.Lingering)
-                routines.Add(Vanish(c, view));
+                routines.Add(view != null ? ToPile(c, view, view.EntityId) : Vanish(c, view));
             c.Lingering.Clear();
             yield return Tween.All(c.Host, routines);
         }
@@ -325,19 +326,49 @@ namespace TCG.Client.Presentation
             var view = c.Board.Card(e.EntityId);
             if (view == null)
                 yield break;
+            // 피격 연출·피격음 바로 뒤에 겹치지 않게 잠깐 틈을 둔다.
+            if (e.Reason == ExitReason.Died)
+                yield return Tween.Wait(DeathPause);
             c.Board.Sounds?.PlayExit(view.Definition);
             c.Board.Detach(view);
             view.SetGlow(null);
+            view.ShowStatus(false);
             int owner = view.OwnerIndex;
 
+            // 기울며 쓰러진 뒤 묘지로 (소환물은 묘지에 가지 않고 그 자리에서 사라진다).
             var t = view.transform;
             var tilted = t.localRotation * Quaternion.Euler(0f, 0f, e.Reason == ExitReason.Replaced ? 0f : 25f);
-            var to = t.localPosition + (e.Reason == ExitReason.Replaced ? new Vector3(-1.5f, 0.3f, 0f) : new Vector3(0f, -0.2f, 0f));
+            var to = t.localPosition + (e.Reason == ExitReason.Replaced ? new Vector3(-1.5f, 0.3f, 0f) : new Vector3(0f, 0.15f, 0f));
             yield return Tween.All(c.Host, new[]
             {
-                Tween.Move(t, to, tilted, 0.4f, 0f, Vector3.one * 0.05f),
+                Tween.Move(t, to, tilted, 0.25f),
                 Tween.Delayed(0.2f, c.Board.Layout(owner, MoveTime)),
             });
+            yield return ToPile(c, view, e.EntityId);
+        }
+
+        const float DeathPause = 0.25f;
+        const float ToPileTime = 0.35f;
+
+        /// <summary>
+        /// 카드를 실제 상태에서 간 곳(묘지·제외)의 더미로 날려 보내고 더미 맨 위를 바꾼다. 묘지·제외가 아니면(소환물 등) 사라진다.
+        /// </summary>
+        static IEnumerator ToPile(PresentationContext c, CardView view, int entityId)
+        {
+            if (view == null)
+                yield break;
+            var entity = c.After.GetEntity(entityId);
+            var zone = entity?.Location;
+            if (zone != ZoneType.Graveyard && zone != ZoneType.Exile)
+            {
+                yield return Vanish(c, view);
+                yield break;
+            }
+            var pile = c.Board.GraveOf(entity.OwnerIndex, zone.Value);
+            view.SetFaceUp(true);
+            yield return Tween.Move(view.transform, pile.transform.localPosition + Vector3.up * 0.06f, Quaternion.identity, ToPileTime, 0f, Vector3.one);
+            var list = c.After.GetPlayer(entity.OwnerIndex).GetZone(zone.Value);
+            pile.Refresh(entity, Mathf.Max(1, list.IndexOf(entity) + 1));
             c.Board.Destroy(view);
         }
 

@@ -8,6 +8,7 @@ namespace TCG.Client.Board
     ///   앞줄:  [동료][동료]   [기물][기물][기물][기물][기물]   [소환물][소환물]
     ///   뒷줄:  [동료][동료]     [필드]      [영웅]            [소환물][소환물]
     ///                                                                       [덱]   ← 소환물 바깥, 뒷줄보다 한 칸 아래
+    /// 덱 위로 같은 X에 [묘지](뒷줄 높이), [제외](앞줄 높이).
     /// 앞줄은 싸우는 기물만 두고, 필드는 영웅 옆(뒷줄)에 둔다. 동료·소환물 묶음은 기물 줄과 0.5 띄워 구분한다.
     /// 상대 쪽은 Z를 뒤집은 같은 배치.
     /// </summary>
@@ -29,6 +30,9 @@ namespace TCG.Client.Board
         static readonly float[] SummonX = { 4.3f, 5.5f };
         const float DeckX = 6.85f;
         const float DeckZ = 4.25f;
+        /// <summary>묘지는 덱 위쪽(뒷줄 높이), 제외는 그 앞(앞줄 높이). 유희왕처럼 덱 옆에 쌓인다.</summary>
+        const float GraveyardZ = BackRowZ;
+        const float ExileZ = FrontRowZ;
 
         /// <summary>bottom=true면 화면 쪽(나), false면 상대 쪽. Z 부호를 뒤집는다.</summary>
         static Vector3 P(float x, float z, bool bottom) => new Vector3(x, 0f, bottom ? -z : z);
@@ -50,6 +54,8 @@ namespace TCG.Client.Board
 
         public static Vector3 Hero(bool bottom) => P(0f, HeroZ, bottom);
         public static Vector3 Deck(bool bottom) => P(DeckX, DeckZ, bottom);
+        public static Vector3 Graveyard(bool bottom) => P(DeckX, GraveyardZ, bottom);
+        public static Vector3 Exile(bool bottom) => P(DeckX, ExileZ, bottom);
         public static Vector3 HandCenter(bool bottom) => P(0f, HandZ, bottom);
 
         public static int MinionSlots => MinionX.Length;
