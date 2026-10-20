@@ -24,7 +24,7 @@ namespace TCG.Client.DeckBuilder
     {
         public const string SceneName = "DeckBuilder";
 
-        public enum SourceFilter { All, Mine, Sample }
+        public enum SourceFilter { All, Mine, Sample, Favorite }
         public enum SortMode { Cost, ScoreHigh, ScoreLow, Name, Recent }
 
         // 화면 상수 (규칙값 아님)
@@ -34,7 +34,7 @@ namespace TCG.Client.DeckBuilder
         static readonly CardType?[] TypeOptions = { null, CardType.Minion, CardType.Spell, CardType.Field, CardType.Companion };
         static readonly int?[] CostOptions = { null, 0, 1, 2, 3, 4, 5, 6, DeckReport.CostCurveBuckets - 1 };
         static readonly int?[] ScoreOptions = { null, 0, 10, 20, 30, 40, 50, 60, 80, 100 };
-        static readonly SourceFilter[] SourceOptions = { SourceFilter.All, SourceFilter.Mine, SourceFilter.Sample };
+        static readonly SourceFilter[] SourceOptions = { SourceFilter.All, SourceFilter.Mine, SourceFilter.Sample, SourceFilter.Favorite };
         static readonly SortMode[] SortOptions = { SortMode.Cost, SortMode.ScoreHigh, SortMode.ScoreLow, SortMode.Name, SortMode.Recent };
 
         static readonly Color Background = new Color(0.06f, 0.07f, 0.09f);
@@ -43,6 +43,7 @@ namespace TCG.Client.DeckBuilder
         static readonly Color RowPicked = new Color(0.2f, 0.27f, 0.38f);
         static readonly Color SmallButton = new Color(0.24f, 0.27f, 0.34f);
         static readonly Color ErrorColor = new Color(1f, 0.5f, 0.45f);
+        static readonly Color FavoriteColor = new Color(1f, 0.82f, 0.3f);
         static readonly Color OkColor = new Color(0.6f, 0.9f, 0.6f);
         static readonly Color MutedColor = new Color(0.75f, 0.77f, 0.82f);
         static readonly Color BarFill = new Color(0.35f, 0.6f, 0.9f);
@@ -242,6 +243,13 @@ namespace TCG.Client.DeckBuilder
         }
 
         public void SetSource(SourceFilter value) { Source = value; Refresh(); }
+
+        /// <summary>카드 즐겨찾기를 켜고 끈다 (내 컴퓨터 설정, <see cref="FavoriteCards"/>).</summary>
+        public void ToggleFavorite(string cardId)
+        {
+            FavoriteCards.Toggle(cardId);
+            Refresh();
+        }
         public void SetTypeFilter(CardType? value) { TypeFilter = value; Refresh(); }
         public void SetCostFilter(int? value) { CostFilter = value; Refresh(); }
         public void SetScoreMax(int? value) { ScoreMax = value; Refresh(); }
@@ -310,6 +318,8 @@ namespace TCG.Client.DeckBuilder
             {
                 bool sample = Pool.IsSample(card.Id);
                 if (Source == SourceFilter.Mine && sample || Source == SourceFilter.Sample && !sample)
+                    continue;
+                if (Source == SourceFilter.Favorite && !FavoriteCards.Contains(card.Id))
                     continue;
                 if (TypeFilter.HasValue && card.Type != TypeFilter.Value)
                     continue;
@@ -407,6 +417,10 @@ namespace TCG.Client.DeckBuilder
 
         int Compare(CardDefinition a, CardDefinition b)
         {
+            // 즐겨찾기 카드는 어떤 정렬이든 맨 위.
+            int favorite = FavoriteCards.Contains(b.Id).CompareTo(FavoriteCards.Contains(a.Id));
+            if (favorite != 0)
+                return favorite;
             int c = 0;
             switch (Sort)
             {
@@ -470,8 +484,14 @@ namespace TCG.Client.DeckBuilder
             var cost = UiFactory.Badge(row, "Cost", new Vector2(0f, 0.5f), new Vector2(36, 0), height - 16, CardPalette.CostBadge, 24);
             cost.text = card.Cost.ToString();
             cost.transform.parent.GetComponent<Image>().raycastTarget = false;
-            UiFactory.Text(row, "Name", string.IsNullOrEmpty(card.Name) ? "(이름 없음)" : card.Name, new Vector2(0f, 0.5f), new Vector2(70 + 150, 0),
-                new Vector2(300, height), 26, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+            UiFactory.Text(row, "Name", string.IsNullOrEmpty(card.Name) ? "(이름 없음)" : card.Name, new Vector2(0f, 0.5f), new Vector2(108 + 140, 0),
+                new Vector2(280, height), 26, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+
+            // 즐겨찾기 별: 누르면 켜고 끈다 (목록 순서·필터가 바로 바뀜).
+            bool favorite = FavoriteCards.Contains(card.Id);
+            var star = UiFactory.Button(row, "Favorite", favorite ? "★" : "☆", new Vector2(0f, 0.5f), new Vector2(86, 0), new Vector2(36, height - 14),
+                new Color(0f, 0f, 0f, 0f), () => ToggleFavorite(card.Id), 28);
+            star.GetComponentInChildren<TextMeshProUGUI>().color = favorite ? FavoriteColor : MutedColor;
             return row;
         }
 
@@ -706,7 +726,8 @@ namespace TCG.Client.DeckBuilder
             return options[((index < 0 ? 0 : index) + delta + options.Length) % options.Length];
         }
 
-        static string SourceName(SourceFilter s) => s == SourceFilter.Mine ? "내 카드" : s == SourceFilter.Sample ? "샘플" : "전체";
+        static string SourceName(SourceFilter s) =>
+            s == SourceFilter.Mine ? "내 카드" : s == SourceFilter.Sample ? "샘플" : s == SourceFilter.Favorite ? "★ 즐겨찾기" : "전체";
 
         static string CostName(int? cost)
         {

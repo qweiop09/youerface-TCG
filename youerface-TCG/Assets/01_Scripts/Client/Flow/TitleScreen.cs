@@ -30,6 +30,28 @@ namespace TCG.Client.Flow
             public string Label;
             public DeckDefinition Deck;
             public bool IsSample;
+            /// <summary>덱 규칙 검사에 걸린 덱 (고를 수는 있지만 대전은 시작할 수 없다).</summary>
+            public bool Illegal;
+            /// <summary>걸린 이유 (불법 덱일 때).</summary>
+            public string Problem;
+        }
+
+        /// <summary>선택지 이름 뒤에 붙는 불법 덱 표시.</summary>
+        public const string IllegalMark = "  <color=#FF8C70>⚠ 불법 덱</color>";
+
+        /// <summary>덱 검사 결과로 선택지를 만든다 (불법 덱도 넣고 표시만 한다). 온라인 방 화면도 같이 쓴다.</summary>
+        public static DeckOption MyDeckOption(string key, DeckDefinition deck, CardCatalog catalog, RuleConfig rules)
+        {
+            var report = DeckValidator.Check(deck, catalog, rules);
+            var messages = report.Messages();
+            return new DeckOption
+            {
+                Key = key,
+                Label = $"내 덱 · {deck.Name}" + (report.IsValid ? "" : IllegalMark),
+                Deck = deck,
+                Illegal = !report.IsValid,
+                Problem = report.IsValid ? null : (messages.Count > 0 ? messages[0] : "덱 규칙에 맞지 않습니다."),
+            };
         }
 
         readonly Dictionary<AiDifficulty, Button> _options = new Dictionary<AiDifficulty, Button>();
@@ -45,8 +67,8 @@ namespace TCG.Client.Flow
         public Button OnlineButton { get; private set; }
         public IReadOnlyList<DeckOption> DeckOptions => _decks;
         public DeckOption SelectedDeck { get; private set; }
-        /// <summary>규칙 검사에 걸려 선택지에서 뺀 내 덱 수.</summary>
-        public int SkippedDecks { get; private set; }
+        /// <summary>규칙 검사에 걸린 내 덱 수 (선택지에는 "불법 덱"으로 들어 있다).</summary>
+        public int IllegalDecks { get; private set; }
         public Button OptionButton(AiDifficulty difficulty) => _options[difficulty];
 
         void Start()
@@ -98,18 +120,17 @@ namespace TCG.Client.Flow
             _pool = CardPool.Load(cards);
             _samples = SampleData.LoadDecks();
             _decks.Clear();
-            SkippedDecks = 0;
+            IllegalDecks = 0;
             var rules = RuleConfig.CreateDefault();
             foreach (var sample in _samples)
                 _decks.Add(new DeckOption { Key = SamplePrefix + sample.Id, Label = $"샘플 덱 · {sample.Name}", Deck = sample, IsSample = true });
+            // 규칙에 걸린 덱도 고를 수 있게 넣고 "불법 덱"으로 표시한다 (대전 시작만 막는다).
             foreach (var entry in decks.List())
             {
-                if (!DeckValidator.Check(entry.Deck, _pool.Catalog, rules).IsValid)
-                {
-                    SkippedDecks++;
-                    continue;
-                }
-                _decks.Add(new DeckOption { Key = entry.Id, Label = $"내 덱 · {entry.Deck.Name}", Deck = entry.Deck });
+                var option = MyDeckOption(entry.Id, entry.Deck, _pool.Catalog, rules);
+                if (option.Illegal)
+                    IllegalDecks++;
+                _decks.Add(option);
             }
             SelectDeck(BattleLaunch.DeckKey);
         }
@@ -122,9 +143,13 @@ namespace TCG.Client.Flow
             _deckLabel.text = SelectedDeck != null ? "덱: " + SelectedDeck.Label : "덱 없음";
             var opponent = OpponentDeck();
             string note = opponent != null ? $"상대: 샘플 덱 · {opponent.Name}" : "";
-            if (SkippedDecks > 0)
-                note += $"   (규칙 검사에 걸린 내 덱 {SkippedDecks}개는 뺐습니다)";
+            bool illegal = SelectedDeck != null && SelectedDeck.Illegal;
+            if (illegal)
+                note = $"불법 덱이라 대전할 수 없습니다: {SelectedDeck.Problem} — 덱 편집에서 고쳐 주세요.";
             _deckNote.text = note;
+            _deckNote.color = illegal ? new Color(1f, 0.6f, 0.5f) : new Color(0.7f, 0.72f, 0.78f);
+            if (StartButton != null)
+                StartButton.interactable = !illegal;
         }
 
         public void StepDeck(int delta)
@@ -157,6 +182,8 @@ namespace TCG.Client.Flow
 
         public void StartBattle()
         {
+            if (SelectedDeck != null && SelectedDeck.Illegal)
+                return; // 불법 덱은 고를 수만 있다
             var opponent = OpponentDeck();
             if (SelectedDeck == null || opponent == null)
             {

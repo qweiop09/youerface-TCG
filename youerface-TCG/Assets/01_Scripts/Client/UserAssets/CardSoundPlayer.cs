@@ -34,17 +34,16 @@ namespace TCG.Client.UserAssets
         public void PlayAttack(CardDefinition card) => Play(card?.Sounds?.Attack);
         public void PlayDamaged(CardDefinition card) => Play(card?.Sounds?.Damaged);
 
-        // 전투처럼 공격음 → 피격음 → 사망음(퇴장음)이 한꺼번에 나오면 서로 묻히므로, 카드 소리는 대기열로 차례로 낸다.
-        // 다음 소리는 앞 소리가 시작한 뒤 min(앞 소리 길이, MaxSpacing) + Gap 이 지나야 시작한다 (실제 시간, 연출 배속과 무관).
-        /// <summary>앞 소리를 기다리는 최대 시간 (긴 소리 때문에 다음 소리가 너무 늦어지지 않게).</summary>
-        public const float MaxSpacing = 0.6f;
-        /// <summary>소리 사이 틈.</summary>
-        public const float Gap = 0.12f;
-        /// <summary>이보다 오래 밀린 소리는 버린다 (연출과 너무 어긋나지 않게).</summary>
-        const float MaxQueueDelay = 2f;
+        // 카드 소리는 대기열로 낸다: 동시에 MaxConcurrent개까지 겹쳐 나고(광역 피격 등), 그보다 많으면 앞 소리가 끝날 때까지 기다린다.
+        // 시작 사이에는 최소 MinGap을 둔다. 소리는 버리지 않는다 (실제 시간, 연출 배속과 무관).
+        /// <summary>동시에 겹쳐 낼 수 있는 카드 소리 수.</summary>
+        public const int MaxConcurrent = 3;
+        /// <summary>소리 시작 사이 최소 틈.</summary>
+        public const float MinGap = 0.12f;
 
-        readonly Queue<(AudioClip clip, float queuedAt)> _queue = new Queue<(AudioClip, float)>();
-        float _nextAllowed;
+        readonly Queue<AudioClip> _queue = new Queue<AudioClip>();
+        readonly List<float> _playingUntil = new List<float>();
+        float _lastStart = -1f;
 
         void Play(string hash)
         {
@@ -52,18 +51,40 @@ namespace TCG.Client.UserAssets
                 return;
             var clip = UserAssetService.Cache.Clip(hash);
             if (clip != null)
-                _queue.Enqueue((clip, Time.unscaledTime));
+                _queue.Enqueue(clip);
+        }
+
+        /// <summary>
+        /// 전투 연출용: 지금 바로 재생하고 길이(초)를 돌려준다 (없으면 0). 연출은 이 길이만큼 기다린 뒤 다음으로 넘어간다.
+        /// </summary>
+        public float PlayNow(string hash)
+        {
+            var clip = _source != null ? UserAssetService.Cache.Clip(hash) : null;
+            if (clip == null)
+                return 0f;
+            StartClip(clip);
+            return clip.length;
+        }
+
+        public float PlayAttackNow(CardDefinition card) => PlayNow(card?.Sounds?.Attack);
+        public float PlayDamagedNow(CardDefinition card) => PlayNow(card?.Sounds?.Damaged);
+
+        void StartClip(AudioClip clip)
+        {
+            _source.PlayOneShot(clip);
+            _lastStart = Time.unscaledTime;
+            _playingUntil.Add(Time.unscaledTime + clip.length);
         }
 
         void Update()
         {
-            while (_queue.Count > 0 && Time.unscaledTime >= _nextAllowed)
+            float now = Time.unscaledTime;
+            _playingUntil.RemoveAll(t => t <= now);
+            while (_queue.Count > 0 && _playingUntil.Count < MaxConcurrent && now - _lastStart >= MinGap)
             {
-                var (clip, queuedAt) = _queue.Dequeue();
-                if (clip == null || Time.unscaledTime - queuedAt > MaxQueueDelay)
-                    continue;
-                _source.PlayOneShot(clip);
-                _nextAllowed = Time.unscaledTime + Mathf.Min(clip.length, MaxSpacing) + Gap;
+                var clip = _queue.Dequeue();
+                if (clip != null)
+                    StartClip(clip);
             }
         }
 

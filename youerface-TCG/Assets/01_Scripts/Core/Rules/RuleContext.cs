@@ -603,7 +603,8 @@ namespace TCG.Core.Rules
             return trigger != TriggerType.OnEnter && trigger != TriggerType.OnExit && trigger != TriggerType.Aura;
         }
 
-        bool ConditionsMet(EffectContext context)
+        /// <summary>효과의 조건을 모두 만족하는가 (조건 없음 = 만족).</summary>
+        public bool ConditionsMet(EffectContext context)
         {
             var conditions = context.Effect.Conditions;
             if (conditions == null)
@@ -642,8 +643,9 @@ namespace TCG.Core.Rules
         }
 
         /// <summary>
-        /// 공격자와 대상이 서로 공격력만큼 동시에 전투 피해 (영웅은 반격 없음).
-        /// 두 피해를 모두 적용하고 피해 트리거를 모은 뒤 사망을 처리한다 — 반격한 기물이 공격으로 쓰러져도 "줄 때"가 걸린다.
+        /// 전투 (GameDesign §7.6, 2026-10-20 결정): 공격자가 먼저 때린다. 대상 기물의 체력이 0 이하가 되면 그 즉시 파괴되고
+        /// 반격하지 않는다. 살아남았으면 공격받기 전 공격력으로 반격하고, 공격자도 0 이하가 되면 그때 파괴된다 (영웅은 반격 없음).
+        /// "살아남아 반격"처럼 예외를 두는 것은 나중에 키워드로 추가한다.
         /// </summary>
         void CombatDamage(int attackerId, int targetId)
         {
@@ -658,13 +660,10 @@ namespace TCG.Core.Rules
 
             int attackerDamage = attacker.Attack ?? 0;
             int counterDamage = targetMinion?.Attack ?? 0;
-            var hitTarget = ApplyDamage(attacker.Id, targetId, attackerDamage, DamageType.Combat);
-            var hitAttacker = targetMinion != null ? ApplyDamage(targetMinion.Id, attacker.Id, counterDamage, DamageType.Combat) : null;
-
-            if (hitTarget != null && hitTarget.IsDead)
-                RemoveFromBoard(hitTarget, ExitReason.Died);
-            if (hitAttacker != null && hitAttacker.IsDead)
-                RemoveFromBoard(hitAttacker, ExitReason.Died);
+            DealDamage(attacker.Id, targetId, attackerDamage, DamageType.Combat);
+            // 쓰러진 기물은 반격하지 않는다.
+            if (targetMinion != null && targetMinion.IsOnBoard)
+                DealDamage(targetMinion.Id, attacker.Id, counterDamage, DamageType.Combat);
         }
 
         /// <summary>턴 시작: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 발동 수집.</summary>

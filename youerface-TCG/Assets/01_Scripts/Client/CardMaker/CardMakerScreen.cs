@@ -247,6 +247,15 @@ namespace TCG.Client.CardMaker
             else
                 f.Buttons("", ("다른 그림", () => ImportArt(card)), ("그림 지우기", () => { card.Art.Image = null; Changed(); }));
 
+            // 공격 연출 (기물만): 돌진 = 날아가서 부딪힘, 원거리 = 제자리에서 대상에 이펙트만. 반격도 같은 연출.
+            if (card.Type == CardType.Minion)
+            {
+                f.Header("공격 연출");
+                card.Presentation = card.Presentation ?? new CardPresentation();
+                f.CycleEnum("공격 방식", card.Presentation.Attack ?? CardPresentation.Default, AttackStyles, AttackStyleName,
+                    v => { card.Presentation.Attack = v; Changed(); });
+            }
+
             f.Header("사운드");
             f.Note($"OGG·WAV 파일을 가져오거나 바로 녹음. {limits.MaxSoundMilliseconds / 1000f:0.#}초 이하.", MutedColor, 22);
             SoundRow(f, "등장음", card.Sounds.Enter, h => card.Sounds.Enter = h);
@@ -274,6 +283,22 @@ namespace TCG.Client.CardMaker
                 f.Buttons(label, ("▶ 듣기", () => PlaySound(hash)), ("바꾸기", () => ImportSound(set)),
                     ("● 녹음", () => StartRecording(label, set)), ("지우기", () => { set(null); Changed(); }));
         }
+
+        static List<TriggerType> TriggersFor(CardType type)
+        {
+            var result = new List<TriggerType>();
+            foreach (var trigger in Values<TriggerType>())
+            {
+                if (CardValidator.CanTrigger(type, trigger))
+                    result.Add(trigger);
+            }
+            return result;
+        }
+
+        static readonly string[] AttackStyles = { CardPresentation.Default, CardPresentation.AttackRanged };
+
+        static string AttackStyleName(string style) =>
+            style == CardPresentation.AttackRanged ? "원거리 (이펙트만)" : "돌진 (날아가서 부딪힘)";
 
         // ------------------------------------------------------------------ 녹음
 
@@ -360,7 +385,8 @@ namespace TCG.Client.CardMaker
                 ("삭제", () => { card.Effects.RemoveAt(index); Changed(); }));
             f.Note(EffectText.Describe(effect), new Color(0.95f, 0.92f, 0.8f), 22);
 
-            f.CycleEnum("트리거", effect.Trigger.Type, Values<TriggerType>(), EffectText.Trigger, v => { effect.Trigger.Type = v; Changed(); });
+            // 이 종류에서 발동할 수 있는 트리거만 (주문의 "카드 사용 시"처럼 영원히 발동하지 않는 조합은 고를 수 없다).
+            f.CycleEnum("트리거", effect.Trigger.Type, TriggersFor(Editing.Type), EffectText.Trigger, v => { effect.Trigger.Type = v; Changed(); });
             f.CycleEnum("발동", effect.Activation, Values<EffectActivation>(), KoreanTerms.Of, v => { effect.Activation = v; Changed(); });
 
             for (int c = 0; c < effect.Conditions.Count; c++)

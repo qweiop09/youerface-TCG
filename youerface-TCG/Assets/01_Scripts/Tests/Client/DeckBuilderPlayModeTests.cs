@@ -195,7 +195,7 @@ namespace TCG.Tests.Client
         [Timeout(120000)]
         public IEnumerator Title_PicksMyDeck_BattleUsesIt()
         {
-            // 내 카드 15종 × 2장 = 30장 덱 (유효) + 3장짜리 덱 (규칙 위반 → 선택지에서 빠짐)
+            // 내 카드 15종 × 2장 = 30장 덱 (유효) + 3장짜리 덱 (규칙 위반 → 고를 수는 있지만 불법 덱, 시작 불가)
             var good = new DeckDefinition { Id = "d_good", Name = "내 기물 덱" };
             for (int i = 0; i < 15; i++)
             {
@@ -214,18 +214,27 @@ namespace TCG.Tests.Client
             title.ReloadDecks(_cards, _decks);
 
             int samples = SampleData.LoadDecks().Count;
-            Assert.That(title.DeckOptions.Count, Is.EqualTo(samples + 1));
-            Assert.That(title.SkippedDecks, Is.EqualTo(1));
+            Assert.That(title.DeckOptions.Count, Is.EqualTo(samples + 2));
+            Assert.That(title.IllegalDecks, Is.EqualTo(1));
+            title.SelectDeck("d_bad");
+            Assert.That(title.SelectedDeck.Illegal, Is.True);
+            Assert.That(title.SelectedDeck.Label, Does.Contain("불법 덱"));
+            Assert.That(title.StartButton.interactable, Is.False, "불법 덱은 대전 시작 불가");
+            title.SelectDeck(title.DeckOptions[0].Key);
+            Assert.That(title.StartButton.interactable, Is.True);
             Assert.That(title.SelectedDeck.IsSample, Is.True, "기본은 첫 샘플 덱");
             Assert.That(title.DeckBuilderButton, Is.Not.Null);
 
             title.SelectDeck("d_good");
             Assert.That(title.SelectedDeck.Deck.Name, Is.EqualTo("내 기물 덱"));
             Assert.That(BattleLaunch.DeckKey, Is.EqualTo("d_good"));
+            string last = title.DeckOptions[title.DeckOptions.Count - 1].Key;
+            title.SelectDeck(last);
             title.StepDeck(1);
             Assert.That(title.SelectedDeck.Key, Is.EqualTo(title.DeckOptions[0].Key), "끝에서 다음은 처음으로");
             title.StepDeck(-1);
-            Assert.That(title.SelectedDeck.Key, Is.EqualTo("d_good"));
+            Assert.That(title.SelectedDeck.Key, Is.EqualTo(last));
+            title.SelectDeck("d_good");
 
             title.StartButton.onClick.Invoke();
             yield return null;

@@ -98,7 +98,7 @@ youerface-TCG/Assets/
   "keywords": ["Taunt"],
   "art":    { "image": "sha256:ab12..." },
   "sounds": { "enter": "sha256:cd34...", "exit": "sha256:ef56...", "attack": "sha256:...", "damaged": "sha256:..." },
-  "presentation": { "enter": "default", "exit": "default" },
+  "presentation": { "enter": "default", "exit": "default", "attack": "default" },
   "flavor": "용암 틈에서 처음 눈을 떴다.",
   "effects": [
     {
@@ -127,6 +127,7 @@ youerface-TCG/Assets/
 - `keywords`: `Taunt`(도발) | `Stealth`(은신) | `Vanguard`(선봉) | `Exhaust`(일회성, 주문 전용) | `TreasureChest`(보물상자). 붙일 수 있는 카드 종류는 레지스트리가 정하고 `CardValidator`가 검사한다.
 - **점수는 저장하지 않는다.** 항상 `ScoreCalculator`로 계산 (패치 시 자동 반영). 공식은 GameDesign §6.1, 가중치는 `ScoreTable`(Version 2 — M5.5-0에서 피해 트리거 6종 추가, 블록별 사전 — 표에 없는 블록은 0점·배율 100). `Calculate`=실제 값(음수 가능, 편집 화면·방 규칙), `CalculateDisplay`=카드 표시(최소 0), `CalculateDetailed`=항목별 내역(`ScoreLine`: 기본·스탯·코스트·키워드·효과 순번·하드캡 환급). 새 블록을 추가하면 `ScoreTable`에도 값을 넣고 Version을 올린다.
 - `presentation`(카드): 등장·퇴장 연출 종류(문자열 ID, 기본 `"default"`). 끌 수 없다. `effects[].presentation`: `enabled`(효과 연출 켜기/끄기), `activation`·`resolution`(발동·처리 연출 종류), `hitMode`(`Simultaneous` | `Sequential`, 광역 피격). GameDesign §7.3.
+- 스키마 v4 → v5 (2026-10-20): `presentation.attack` 공격 연출(`default` = 돌진, `ranged` = 원거리). 없으면 기본값이라 변환할 것 없음.
 - 스키마 v1 → v2: `presentationStyle` 문자열을 `presentation.enter/exit`로 옮긴다(중첩 소환물 포함). 덱 JSON은 별도 형식 버전(1): `{ schemaVersion, id, name, cards: [카드 ID…] }`.
 - 스키마 v2 → v3 (M5.5-0): 트리거 `OnDamaged`(피격 시) → `OnAnyDamageTaken`(모든 피해를 받을 때), 중첩 소환물 포함. 새 선택 칸 `flavor`(카드 설명, 점수·규칙 무관, 없으면 생략). 저장된 내 카드는 읽을 때 변환되고 다음 저장 때 v3로 쓰인다.
 - `flavor` 글자 수: `RuleConfig.MaxFlavorLength`(제안값 100, `string.Length` 기준·줄바꿈 포함), `CardValidator.Validate(card, registry, rules)`가 검사(소환물 포함).
@@ -149,9 +150,10 @@ youerface-TCG/Assets/
   6. 매 단계마다 상시 효과 재계산 → 사망 → 승패 판정(`Settle`). 영웅 체력 0 이하면 즉시 대전 종료, 남은 체인은 버린다.
   7. 플레이어 행동 1개(선택 응답 포함)에서 처리한 체인 수가 `MaxTriggerResolutionsPerAction`을 넘으면 남은 체인·대기 효과를 버린다.
 - **이벤트**: 체인에 올라감 `EffectActivatedEvent`(발동 연출) → 처리 시작 `EffectResolvingEvent`(처리 연출, 뒤따르는 이벤트가 결과) / 무효화 `EffectNegatedEvent` → `ChainEndedEvent`. 선택 대기 `DecisionRequestedEvent`.
+- **조건이 있는 카드**: `GameEngine.ValidatePlay`가 "등장 시" 효과의 조건을 상태 복사본에서 판정한다(낸 카드를 손패에서 빼고 보드 카드는 놓은 뒤, 필드는 기존 필드를 뺀 뒤). 하나라도 틀리면 "조건이 맞지 않아 사용할 수 없습니다." AI·가능 여부 표시도 같은 검사를 쓴다.
 - **카드 내기**: 코스트 지불 → 손패에서 제거 → 즉시 배치(필드는 기존 필드 퇴장 먼저) / 주문은 바로 묘지(일회성은 소멸) → 발동한 효과들(내 보드의 "카드 사용 시", 낸 카드의 "등장 시", 교체된 필드의 "퇴장 시")로 체인.
 - **턴 시작**: 최대 코스트 증가·충전 → 기물 공격 가능 상태로 → 1장 드로우 → "턴 시작 시" 체인.
-- **피해** (GameDesign §7.6): `DealDamage(source, target, amount, DamageType)` — `Effect`(피해 행동) / `Combat`(공격·반격) / `Fatigue`(피로, 출처 0). 피해 적용 → `DamageDealtEvent`(유형 포함) → 받은 기물의 "받을 때"(유형별 + 모든) → 준 카드(보드 위일 때)의 "줄 때"(유형별 + 모든)를 효과 순번대로 모은다. 피로는 "모든 피해를 받을 때"에만. 영웅은 아직 효과가 없어 받는 쪽 트리거가 없다. 전투는 공격·반격 피해를 **둘 다 적용하고 트리거를 모은 뒤** 사망 처리(공격받아 쓰러진 기물의 반격 "줄 때"도 걸림). 이미 모인 효과는 주인이 퇴장해도 처리된다(기존 규칙). 피해 트리거도 반복 트리거라 사용 횟수를 1 소모.
+- **피해** (GameDesign §7.6): `DealDamage(source, target, amount, DamageType)` — `Effect`(피해 행동) / `Combat`(공격·반격) / `Fatigue`(피로, 출처 0). 피해 적용 → `DamageDealtEvent`(유형 포함) → 받은 기물의 "받을 때"(유형별 + 모든) → 준 카드(보드 위일 때)의 "줄 때"(유형별 + 모든)를 효과 순번대로 모은다. 피로는 "모든 피해를 받을 때"에만. 영웅은 아직 효과가 없어 받는 쪽 트리거가 없다. 전투는 공격자 피해 → (대상이 0 이하면 즉시 파괴, 반격 없음) → 반격 피해 → (공격자가 0 이하면 파괴) 순서(2026-10-20). 이미 모인 효과는 주인이 퇴장해도 처리된다(기존 규칙). 피해 트리거도 반복 트리거라 사용 횟수를 1 소모.
 - **기물 칸** (GameDesign §4.1): 기물 영역은 칸 번호 영역(`Zone.UsesSlots`)이다. `Entity.Slot`(0 = 왼쪽, 그 밖 -1), 목록은 칸 번호 순. `PlayCardCommand.Position` = 칸 번호(빈 칸이어야 함), 없으면 `Zone.NearestCenterFreeSlot`. 복제·스냅샷·상태 해시·`CardEnteredEvent.Slot`에 칸 번호를 담는다(통신 버전 3). Client는 `CardView.Slot`의 칸 표시 위에 그리고, 놓은 X에서 가장 가까운 빈 칸을 고른다(`BoardView.MinionSlotAt`).
 - **능력치 변화 기록** (표시용): `Entity.Changes`(`StatChange`: 능력치·출처 ID·출처 이름·증감 합·상시 여부). 공격력·체력·코스트 증감 행동이 영구 변경을, 상시 재계산이 상시 보정을 출처별로 합쳐 기록한다. 규칙 계산에는 쓰지 않아 상태 해시에서 빼고, 복제·스냅샷에는 담는다. 자세히 보기는 숫자 원 옆에 증감 수치를 붙이고, 마우스를 올리면 "원래 → 지금"과 출처별 줄을 띄운다.
 - **수치 모델**: 공격력·체력·코스트 = 기본값(영구 변경 포함) + 상시 보정값. 체력은 받은 피해량으로 관리하고, 상시 보정은 처리 단계마다 처음부터 다시 계산한다.
@@ -179,6 +181,7 @@ youerface-TCG/Assets/
   - 구조 이벤트(카드 내기, 주문, 체인 발동·처리·무효, 공격, 턴, 승패)는 하나씩 순서대로.
   - 그 사이에 이어지는 결과 이벤트(피해, 회복, 사망·퇴장, 수치·사용 횟수 변화, 드로우·버리기·소멸, 소환물 등장)는 **대상별 줄**로 나눠 병렬 재생. 같은 대상은 한 줄에서 순서대로(예: 피격 → 사망).
   - 직전 처리 효과의 `hitMode`가 `Sequential`이면 줄마다 0.28초씩 늦게 시작한다(하나씩 차례로), `Simultaneous`면 동시에.
+- **전투 연출**: 전투 피해(`DamageType.Combat`)는 결과 이벤트에서 빼서 하나씩 재생한다(`PresentationPlayer.IsResult`). 결과 이벤트 묶음에서 피해 줄은 맞는 대상의 화면 X가 큰(오른쪽) 순서로 시작하고(`OrderRightFirst`), 여러 줄이 맞으면 0.2초 간격(`DamageStagger`)으로 시작한다. 카드 소리 대기열은 동시에 3개(`MaxConcurrent`)까지, 시작 사이 0.12초 이상. 피해 1번 = 타격 1번(`DefaultPresenters.CombatHit`): 때리는 카드의 `presentation.attack`에 따라 돌진(날아가 부딪힘)·원거리(이펙트만) → 닿는 순간 숫자·흔들림·`HitEffects.Burst`(코드 파티클 + 퍼지는 원). 공격음은 타격 시작에 `CardSoundPlayer.PlayNow`로 바로, 피격음은 공격음이 끝난 뒤, 다음 연출은 피격음이 끝나고 0.15초 뒤(실제 시간). 그 밖의 카드 소리는 대기열로 차례로(버리지 않음). `AttackEvent`는 상대 공격의 화살표만.
 - **화면 숫자**: `CardView`·`HeroView`는 규칙 상태와 별개로 "보이는 숫자"를 들고, 이벤트대로 한 단계씩 바꾼다. 새로 그리는 카드는 `Before`의 값(이번 명령에서 생긴 소환물은 정의 값)에서 시작한다.
 - **맞추기**: 묶음이 끝나면 `BoardView.SyncTo(After)`로 실제 상태와 맞추고, 달랐던 곳 수를 `TotalDrift`에 더해 경고를 남긴다(연출 버그 검출용, PlayMode 테스트가 0인지 검사).
 - **시간**: 모든 연출은 `PresentationTime.Speed` 배속을 따른다(빨리 감기·스킵용). 연출 하나가 예외로 멈춰도 전체가 멈추지 않도록 `Tween.Safe`로 감싼다.

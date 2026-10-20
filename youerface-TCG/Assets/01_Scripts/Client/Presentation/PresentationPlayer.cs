@@ -93,7 +93,11 @@ namespace TCG.Client.Presentation
                         tracks[index].Add(events[i]);
                     }
 
-                    float stagger = hitMode == HitPresentationMode.Sequential ? HitStagger : 0f;
+                    // 여러 대상이 한 번에 맞으면(광역 피해) 화면 오른쪽 카드부터 차례로 (GameDesign §7.3).
+                    tracks = OrderRightFirst(context, tracks);
+                    // 여러 장이 맞으면 일정한 간격으로 차례로 (하나씩 차례로 설정이면 더 길게).
+                    int damageTracks = tracks.FindAll(t => t[0] is DamageDealtEvent).Count;
+                    float stagger = hitMode == HitPresentationMode.Sequential ? HitStagger : damageTracks > 1 ? DamageStagger : 0f;
                     var routines = new List<IEnumerator>();
                     for (int t = 0; t < tracks.Count; t++)
                         routines.Add(Tween.Delayed(stagger * t, PlayTrack(context, tracks[t])));
@@ -115,6 +119,20 @@ namespace TCG.Client.Presentation
                 Debug.LogWarning($"[Presentation] 연출이 끝난 뒤 화면과 상태가 {_board.LastDriftCount}곳 달랐습니다 (자동으로 맞춤).");
             BatchesPlayed++;
         }
+
+        /// <summary>피해 줄은 맞는 대상의 화면 X가 큰(오른쪽) 순서로, 그 밖의 줄은 원래 순서대로 뒤에.</summary>
+        List<List<GameEvent>> OrderRightFirst(PresentationContext context, List<List<GameEvent>> tracks)
+        {
+            float X(List<GameEvent> track) =>
+                track[0] is DamageDealtEvent d ? (_board.PositionOf(context.Before, d.TargetId) ?? _board.PositionOf(context.After, d.TargetId))?.x ?? 0f : 0f;
+            bool IsDamage(List<GameEvent> track) => track[0] is DamageDealtEvent;
+            // OrderBy는 같은 값이면 원래 순서를 지킨다.
+            return System.Linq.Enumerable.ToList(System.Linq.Enumerable.ThenByDescending(
+                System.Linq.Enumerable.OrderBy(tracks, t => IsDamage(t) ? 0 : 1), X));
+        }
+
+        /// <summary>여러 대상이 한 번에 맞을 때 오른쪽부터 맞는 간격 (초, 연출 배속 적용).</summary>
+        const float DamageStagger = 0.2f;
 
         IEnumerator PlayTrack(PresentationContext context, List<GameEvent> track)
         {
@@ -142,9 +160,12 @@ namespace TCG.Client.Presentation
             }
         }
 
-        /// <summary>효과·행동의 결과로 생기는 이벤트 (대상별로 병렬 재생).</summary>
+        /// <summary>
+        /// 효과·행동의 결과로 생기는 이벤트 (대상별로 병렬 재생).
+        /// 전투 피해는 빼서 하나씩 순서대로 재생한다: 공격자의 타격 → 반격 (각각 타격 연출 + 소리가 끝날 때까지).
+        /// </summary>
         static bool IsResult(GameEvent e) =>
-            e is DamageDealtEvent || e is HealedEvent || e is CardExitedEvent || e is StatsChangedEvent ||
+            (e is DamageDealtEvent d && d.DamageType != TCG.Core.Data.DamageType.Combat) || e is HealedEvent || e is CardExitedEvent || e is StatsChangedEvent ||
             e is UsageChangedEvent || e is CardDrawnEvent || e is CardBurnedEvent || e is CardDiscardedEvent ||
             e is CardEnteredEvent || e is PlacementFailedEvent || e is FatigueEvent || e is CostChangedEvent;
 

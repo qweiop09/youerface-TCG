@@ -8,7 +8,7 @@ namespace TCG.Client.Common
     /// 카드·효과 설명문 생성기 (GameDesign §11.1). 카드 제작기 미리보기·덱 편집·대전 화면이 모두 이것을 쓴다.
     /// - 효과 1개: "등장 시: 무작위 적 기물 1개에게 2 피해를 준다."
     /// - 카드 본문: 트리거·조건·발동 방식이 같은 효과를 한 문장으로 묶는다.
-    ///   예) "카드 사용 시: 무작위 적 기물 1개에게 1 피해를 주고, 내 영웅의 체력을 1 회복한다."
+    ///   예) "내가 다른 카드를 낼 때: 무작위 적 기물 1개에게 1 피해를 주고, 내 영웅의 체력을 1 회복한다."
     /// 문구에는 "하수인"이 아니라 "기물"을 쓴다.
     /// </summary>
     public static class EffectText
@@ -118,7 +118,7 @@ namespace TCG.Client.Common
                 case TriggerType.OnCombatDamageDealt: return "전투 피해를 줄 때";
                 case TriggerType.OnAnyDamageDealt: return "모든 피해를 줄 때";
                 case TriggerType.OnAttack: return "공격 시";
-                case TriggerType.OnCardPlayed: return "카드 사용 시";
+                case TriggerType.OnCardPlayed: return "내가 다른 카드를 낼 때";
                 case TriggerType.Aura: return "상시";
                 default: return type.ToString();
             }

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "id": "s_scout",
   "name": "정찰병",
   "type": "Minion",
@@ -13,7 +13,8 @@
   "sounds": {},
   "presentation": {
     "enter": "default",
-    "exit": "default"
+    "exit": "default",
+    "attack": "default"
   },
   "effects": []
 }

@@ -108,11 +108,9 @@ namespace TCG.Client.Online
             var rules = RuleConfig.CreateDefault();
             foreach (var sample in _samples)
                 _decks.Add(new TitleScreen.DeckOption { Key = TitleScreen.SamplePrefix + sample.Id, Label = $"샘플 덱 · {sample.Name}", Deck = sample, IsSample = true });
+            // 불법 덱도 고를 수 있게 넣고 표시한다 (방 규칙 검사 줄에 이유가 나오고, 방장은 방을 만들 수 없다).
             foreach (var entry in decks.List())
-            {
-                if (DeckValidator.Check(entry.Deck, _pool.Catalog, rules).IsValid)
-                    _decks.Add(new TitleScreen.DeckOption { Key = entry.Id, Label = $"내 덱 · {entry.Deck.Name}", Deck = entry.Deck });
-            }
+                _decks.Add(TitleScreen.MyDeckOption(entry.Id, entry.Deck, _pool.Catalog, rules));
             SelectDeck(BattleLaunch.DeckKey);
         }
 

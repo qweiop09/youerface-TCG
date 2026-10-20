@@ -245,13 +245,77 @@ namespace TCG.Client.Presentation
 
         static IEnumerator Damaged(PresentationContext c, DamageDealtEvent e)
         {
+            if (e.DamageType == Core.Data.DamageType.Combat)
+                return CombatHit(c, e);
+            return ShowDamage(c, e, pacedSoundAt: -1f);
+        }
+
+        // ------------------------------------------------------------------ 전투 (타격)
+
+        /// <summary>소리 사이·연출 사이의 자연스러운 틈 (실제 시간).</summary>
+        const float BeatGap = 0.15f;
+
+        /// <summary>
+        /// 전투 피해 1번 = 타격 1번: 때리는 카드가 공격 연출(돌진: 날아가 부딪힘 / 원거리: 대상에 이펙트) → 닿는 순간 피해 숫자·흔들림·파티클.
+        /// 공격음은 타격 시작에, 피격음은 공격음이 끝난 뒤에 내고, 피격음이 끝나고 조금 쉰 뒤 다음 연출로 넘어간다.
+        /// 공격자의 타격 다음에 반격이 같은 방식으로 이어진다 (사망은 전투가 끝난 뒤 — Core가 두 피해 뒤에 처리).
+        /// </summary>
+        static IEnumerator CombatHit(PresentationContext c, DamageDealtEvent e)
+        {
+            var striker = c.Board.Card(e.SourceId);
+            var targetPos = c.Board.PositionOf(c.Before, e.TargetId) ?? c.Board.PositionOf(c.After, e.TargetId);
+            if (striker == null || targetPos == null)
+            {
+                yield return ShowDamage(c, e, pacedSoundAt: Time.unscaledTime);
+                yield break;
+            }
+
+            float attackLength = c.Board.Sounds?.PlayAttackNow(striker.Definition) ?? 0f;
+            float attackEnds = Time.unscaledTime + attackLength;
+            bool ranged = striker.Definition.Presentation?.Attack == Core.Data.CardPresentation.AttackRanged;
+            var t = striker.transform;
+            var home = t.localPosition;
+            var homeRot = t.localRotation;
+            var host = c.Host;
+
+            if (ranged)
+            {
+                // 원거리: 제자리에서 기를 모으고(빛·튕김) 대상에 이펙트만.
+                HitEffects.Burst(host, c.Board.EffectRoot, t.position, HitEffects.MagicColor, 0.5f, 10);
+                yield return Tween.Punch(t, 0.12f, 0.18f);
+                HitEffects.Burst(host, c.Board.EffectRoot, targetPos.Value, HitEffects.MagicColor, 1.3f, 28);
+                yield return ShowDamage(c, e, pacedSoundAt: attackEnds + (attackLength > 0f ? BeatGap : 0f));
+            }
+            else
+            {
+                // 돌진: 들어 올린 뒤 대상에게 날아가 부딪히고(파티클) 돌아온다.
+                var hit = Vector3.Lerp(home, t.parent.InverseTransformPoint(targetPos.Value), 0.8f) + Vector3.up * 0.3f;
+                yield return Tween.Move(t, home + Vector3.up * 0.5f, homeRot, 0.12f);
+                yield return Tween.Move(t, hit, homeRot, 0.12f);
+                HitEffects.Burst(host, c.Board.EffectRoot, targetPos.Value, HitEffects.ImpactColor);
+                yield return Tween.All(host, new[]
+                {
+                    Tween.Move(t, home, homeRot, 0.22f),
+                    ShowDamage(c, e, pacedSoundAt: attackEnds + (attackLength > 0f ? BeatGap : 0f)),
+                });
+            }
+        }
+
+        /// <summary>
+        /// 피해 숫자·흔들림·체력 감소. pacedSoundAt &gt;= 0이면(전투) 피격음을 그 시각(실제 시간)에 내고, 피격음이 끝나고 조금 쉴 때까지 기다린다.
+        /// 아니면(효과 피해) 피격음을 차례 대기열에 넣는다.
+        /// </summary>
+        static IEnumerator ShowDamage(PresentationContext c, DamageDealtEvent e, float pacedSoundAt)
+        {
             var card = c.Board.Card(e.TargetId);
             var hero = card == null ? c.After.FindHero(e.TargetId) : null;
             Transform target;
+            bool paced = pacedSoundAt >= 0f;
             if (card != null)
             {
                 card.AddHealth(-e.Amount);
-                c.Board.Sounds?.PlayDamaged(card.Definition);
+                if (!paced)
+                    c.Board.Sounds?.PlayDamaged(card.Definition); // 효과 피해: 대기열 (3개까지 겹침)
                 target = card.transform;
             }
             else if (hero != null)
@@ -269,7 +333,19 @@ namespace TCG.Client.Presentation
             {
                 Tween.Shake(target, 0.12f, 0.25f),
                 Float(c, target.position, $"-{e.Amount}", DamageText),
+                paced ? PacedDamagedSound(c, card, pacedSoundAt) : null,
             });
+        }
+
+        /// <summary>공격음이 끝난 뒤 피격음을 내고, 끝나고 조금 쉴 때까지 기다린다 (소리가 끝나면 다음 연출).</summary>
+        static IEnumerator PacedDamagedSound(PresentationContext c, CardView card, float at)
+        {
+            while (Time.unscaledTime < at)
+                yield return null;
+            float length = card != null ? c.Board.Sounds?.PlayDamagedNow(card.Definition) ?? 0f : 0f;
+            float until = Time.unscaledTime + length + (length > 0f ? BeatGap : 0f);
+            while (Time.unscaledTime < until)
+                yield return null;
         }
 
         static IEnumerator Healed(PresentationContext c, HealedEvent e)
@@ -372,23 +448,14 @@ namespace TCG.Client.Presentation
             c.Board.Destroy(view);
         }
 
+        /// <summary>공격 선언: 상대의 공격은 대상을 화살표로 먼저 보여 준다. 실제 타격은 전투 피해 연출(<see cref="CombatHit"/>)이 한다.</summary>
         static IEnumerator Attack(PresentationContext c, AttackEvent e)
         {
             var attacker = c.Board.Card(e.AttackerId);
-            var targetPos = c.Board.PositionOf(c.After, e.TargetId) ?? c.Board.PositionOf(c.Before, e.TargetId);
-            if (attacker == null || targetPos == null)
+            if (attacker == null)
                 yield break;
-            // 상대의 공격은 대상을 화살표로 먼저 보여 준다.
             if (!c.IsMine(attacker.OwnerIndex))
                 yield return PointAt(c, attacker.transform.position, e.TargetId, OpponentAttackArrowSeconds);
-            c.Board.Sounds?.PlayAttack(attacker.Definition);
-            var t = attacker.transform;
-            var home = t.localPosition;
-            var homeRot = t.localRotation;
-            var hit = Vector3.Lerp(home, t.parent.InverseTransformPoint(targetPos.Value), 0.75f) + Vector3.up * 0.3f;
-            yield return Tween.Move(t, home + Vector3.up * 0.4f, homeRot, 0.1f);
-            yield return Tween.Move(t, hit, homeRot, 0.14f);
-            yield return Tween.Move(t, home, homeRot, 0.2f);
         }
 
         // ------------------------------------------------------------------ 도우미

@@ -57,6 +57,15 @@ namespace TCG.Core.Data
         public static void Normalize(CardDefinition card, EffectRegistry registry)
         {
             registry = registry ?? EffectRegistry.Default;
+            // 이 종류에서 발동할 수 없는 트리거는 등장 시로 바꾼다 (CardValidator.CanTrigger).
+            if (card.Effects != null)
+            {
+                foreach (var effect in card.Effects)
+                {
+                    if (effect?.Trigger != null && !CardValidator.CanTrigger(card.Type, effect.Trigger.Type))
+                        effect.Trigger.Type = TriggerType.OnEnter;
+                }
+            }
             if (card.Type == CardType.Minion)
             {
                 card.Attack = card.Attack ?? 1;

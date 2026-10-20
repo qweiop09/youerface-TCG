@@ -12,6 +12,15 @@ namespace TCG.Core.Data
         public string Enter { get; set; } = Default;
         /// <summary>퇴장(사망·파괴·교체) 연출 종류.</summary>
         public string Exit { get; set; } = Default;
+
+        /// <summary>원거리 공격 연출: 제자리에서 대상에 이펙트만 띄운다.</summary>
+        public const string AttackRanged = "ranged";
+
+        /// <summary>
+        /// 공격(전투 피해를 줄 때) 연출 종류 (기물, 스키마 v5). <see cref="Default"/> = 돌진(날아가서 부딪힘),
+        /// <see cref="AttackRanged"/> = 원거리(이펙트만). 반격도 같은 연출을 쓴다.
+        /// </summary>
+        public string Attack { get; set; } = Default;
     }
 
     /// <summary>여러 대상에게 피해를 줄 때 피격 연출 방식.</summary>

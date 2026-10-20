@@ -126,5 +126,30 @@ namespace TCG.Tests.Core
             Assert.That(CardValidator.Validate(TestCards.FieldWith("c_turn",
                 TestCards.Effect(TriggerType.OnTurnEnd, TargetType.Chosen, ActionType.Damage, 1))), Is.Not.Empty);
         }
+
+        [TestCase(CardType.Spell, TriggerType.OnCardPlayed, false)]
+        [TestCase(CardType.Spell, TriggerType.OnTurnEnd, false)]
+        [TestCase(CardType.Spell, TriggerType.OnEnter, true)]
+        [TestCase(CardType.Companion, TriggerType.OnCardPlayed, true)]
+        [TestCase(CardType.Companion, TriggerType.OnAnyDamageTaken, false)]
+        [TestCase(CardType.Field, TriggerType.OnAttack, false)]
+        [TestCase(CardType.Field, TriggerType.OnEffectDamageDealt, true)]
+        [TestCase(CardType.Minion, TriggerType.OnCombatDamageDealt, true)]
+        public void TriggersThatCanNeverFire_AreRejected(CardType type, TriggerType trigger, bool ok)
+        {
+            var card = CardEditing.NewCard("c_x", type);
+            card.Effects.Add(TestCards.Effect(trigger, TargetType.EnemyHero, ActionType.Damage, 1));
+            Assert.That(CardValidator.CanTrigger(type, trigger), Is.EqualTo(ok));
+            Assert.That(CardValidator.Validate(card).Count == 0, Is.EqualTo(ok), string.Join(", ", CardValidator.Validate(card)));
+        }
+
+        [Test]
+        public void ChangingType_ResetsTriggersThatCannotFire()
+        {
+            var card = CardEditing.NewCard("c_x", CardType.Companion);
+            card.Effects.Add(TestCards.Effect(TriggerType.OnCardPlayed, TargetType.EnemyHero, ActionType.Damage, 1));
+            CardEditing.SetType(card, CardType.Spell);
+            Assert.That(card.Effects[0].Trigger.Type, Is.EqualTo(TriggerType.OnEnter));
+        }
     }
 }

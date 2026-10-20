@@ -90,16 +90,44 @@ namespace TCG.Core.Data
                 return;
 
             for (int i = 0; i < card.Effects.Count; i++)
-                ValidateEffect(card.Effects[i], registry, rules, errors, $"{path}/효과{i + 1}");
+                ValidateEffect(card.Effects[i], registry, rules, errors, $"{path}/효과{i + 1}", card.Type);
         }
 
-        static void ValidateEffect(EffectDefinition effect, EffectRegistry registry, RuleConfig rules, List<string> errors, string path)
+        /// <summary>
+        /// 이 종류의 카드에서 이 트리거가 실제로 발동할 수 있는가. 발동할 수 없는 효과는 카드에 달 수 없다 (2026-10-20 결정).
+        /// - 등장 시: 모든 종류.
+        /// - 주문은 보드에 남지 않으므로 그 밖의 트리거(퇴장·턴·카드 사용·상시·피해를 줄 때 등)가 발동하지 않는다.
+        /// - 공격 시·전투 피해를 줄 때·피해를 받을 때: 공격·체력이 있는 기물만.
+        /// </summary>
+        public static bool CanTrigger(CardType type, TriggerType trigger)
+        {
+            if (trigger == TriggerType.OnEnter)
+                return true;
+            if (type == CardType.Spell)
+                return false;
+            switch (trigger)
+            {
+                case TriggerType.OnAttack:
+                case TriggerType.OnCombatDamageDealt:
+                case TriggerType.OnEffectDamageTaken:
+                case TriggerType.OnCombatDamageTaken:
+                case TriggerType.OnAnyDamageTaken:
+                    return type == CardType.Minion;
+                default:
+                    return true;
+            }
+        }
+
+        static void ValidateEffect(EffectDefinition effect, EffectRegistry registry, RuleConfig rules, List<string> errors, string path, CardType owner)
         {
             if (effect == null || effect.Trigger == null || effect.Target == null || effect.Action == null)
             {
                 errors.Add($"[{path}] 트리거·대상·행동이 모두 필요합니다.");
                 return;
             }
+
+            if (!CanTrigger(owner, effect.Trigger.Type))
+                errors.Add($"[{path}] 이 종류의 카드에서는 발동하지 않는 트리거입니다 (예: 주문의 \"카드 사용 시\" — 주문은 보드에 남지 않음).");
 
             if (effect.Conditions != null)
             {

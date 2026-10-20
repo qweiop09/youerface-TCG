@@ -79,7 +79,7 @@ namespace TCG.Tests.Core
         }
 
         [Test]
-        public void CounterAttacker_KilledInCombat_StillTriggersDealt()
+        public void DefenderKilledByAttack_IsDestroyedAtOnce_AndDoesNotCounter()
         {
             var g = new TestGame();
             var attacker = g.AddToBoard(0, TestCards.Minion("c_big", 1, 5, 10));
@@ -90,8 +90,27 @@ namespace TCG.Tests.Core
             g.Attack(attacker, defender.Id);
 
             Assert.That(g.P1.Graveyard.Contains(defender), Is.True);
-            Assert.That(attacker.Health, Is.EqualTo(9), "반격 1");
-            Assert.That(g.P0.Hero.Health, Is.EqualTo(27), "쓰러진 반격 기물의 \"전투 피해를 줄 때\"");
+            Assert.That(attacker.Health, Is.EqualTo(10), "쓰러진 기물은 반격하지 않는다");
+            Assert.That(g.P0.Hero.Health, Is.EqualTo(30), "반격이 없으니 \"전투 피해를 줄 때\"도 없다");
+            Assert.That(g.Events<DamageDealtEvent>().Count(), Is.EqualTo(1));
+            // 파괴는 공격자의 타격 바로 뒤 (반격 전에 끝남).
+            var events = g.LastEvents;
+            int hit = events.FindIndex(e => e is DamageDealtEvent);
+            int died = events.FindIndex(e => e is CardExitedEvent x && x.EntityId == defender.Id);
+            Assert.That(died, Is.EqualTo(hit + 1));
+        }
+
+        [Test]
+        public void SurvivingDefender_Counters_AndCanKillAttacker()
+        {
+            var g = new TestGame();
+            var attacker = g.AddToBoard(0, TestCards.Minion("c_glass", 1, 2, 2));
+            var defender = g.AddToBoard(1, TestCards.Minion("c_wall", 1, 3, 5));
+
+            g.Attack(attacker, defender.Id);
+
+            Assert.That(defender.Health, Is.EqualTo(3));
+            Assert.That(g.P0.Graveyard.Contains(attacker), Is.True, "반격으로 쓰러짐");
         }
 
         [Test]

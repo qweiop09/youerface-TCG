@@ -11,7 +11,7 @@ namespace TCG.Core.Serialization
     /// </summary>
     public static class CardSerializer
     {
-        public const int CurrentSchemaVersion = 4;
+        public const int CurrentSchemaVersion = 5;
         public const string SchemaVersionProperty = "schemaVersion";
 
         public static string Serialize(CardDefinition card, bool indented = true)
@@ -71,6 +71,7 @@ namespace TCG.Core.Serialization
             MigrateV1ToV2,
             MigrateV2ToV3,
             MigrateV3ToV4,
+            MigrateV4ToV5,
         };
 
         /// <summary>v1 → v2: 문자열 presentationStyle을 등장·퇴장 연출 설정 객체로 바꾼다 (효과 연출 설정은 기본값).</summary>
@@ -127,6 +128,9 @@ namespace TCG.Core.Serialization
 
         /// <summary>v3 → v4: 사운드에 공격음(attack)·피격음(damaged) 선택 칸 추가. 기존 카드는 바꿀 것이 없다.</summary>
         static JObject MigrateV3ToV4(JObject root) => root;
+
+        /// <summary>v4 → v5: 연출에 공격 연출(presentation.attack, 기본 "default" = 돌진) 추가. 없으면 기본값으로 읽으므로 바꿀 것이 없다.</summary>
+        static JObject MigrateV4ToV5(JObject root) => root;
 
         /// <summary>fromVersion → CurrentSchemaVersion으로 한 단계씩 변환한다.</summary>
         static JObject Migrate(JObject root, int fromVersion)

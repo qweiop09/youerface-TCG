@@ -13,11 +13,14 @@ namespace TCG.Tests.Core
         {
             var g = new TestGame();
             var attacker = g.AddToBoard(0, TestCards.Minion(attack: 3, health: 4));
-            var defender = g.AddToBoard(1, TestCards.Minion(attack: 2, health: 3));
+            var defender = g.AddToBoard(1, TestCards.Minion(attack: 2, health: 4));
 
             g.Attack(attacker, defender.Id);
+            Assert.That(attacker.Health, Is.EqualTo(2), "살아남은 대상은 반격");
+            Assert.That(defender.Health, Is.EqualTo(1));
 
-            Assert.That(attacker.Health, Is.EqualTo(2));
+            g.Attack(g.AddToBoard(0, TestCards.Minion(attack: 3, health: 4)), defender.Id);
+            Assert.That(g.P1.Graveyard.Contains(defender), Is.True);
             Assert.That(g.P1.Graveyard.Contains(defender), Is.True);
             Assert.That(g.Events<CardExitedEvent>().Single().Reason, Is.EqualTo(ExitReason.Died));
         }

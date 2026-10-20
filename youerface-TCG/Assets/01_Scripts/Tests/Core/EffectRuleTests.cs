@@ -61,10 +61,12 @@ namespace TCG.Tests.Core
             for (int i = 0; i < 5; i++)
                 g.AddToHand(0, TestCards.Minion());
             var condition = new ConditionDefinition { Type = ConditionType.HandCountAtMost, Value = 2 };
-            var spell = g.AddToHand(0, TestCards.Spell("c_cond", 0,
-                TestCards.Effect(TriggerType.OnEnter, TargetType.EnemyHero, ActionType.Damage, 3, conditions: condition)));
+            // 낼 때 효과의 조건은 낼 수 있는지로 판정하므로(PlayCardTests), 보드에 있는 카드의 턴 종료 효과로 확인한다.
+            g.AddToBoard(0, TestCards.CompanionWith("c_cond", null,
+                TestCards.Effect(TriggerType.OnTurnEnd, TargetType.EnemyHero, ActionType.Damage, 3, conditions: condition)));
+            g.FillDeck(1, 2);
 
-            g.Play(spell);
+            g.EndTurn();
 
             Assert.That(g.P1.Hero.Health, Is.EqualTo(30));
         }

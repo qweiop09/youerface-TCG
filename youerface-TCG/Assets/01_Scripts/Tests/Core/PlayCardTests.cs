@@ -38,6 +38,55 @@ namespace TCG.Tests.Core
             Assert.That(g.Events<TCG.Core.Events.CardEnteredEvent>().Single().Slot, Is.EqualTo(3));
         }
 
+        static ConditionDefinition Cond(ConditionType type, int value) => new ConditionDefinition { Type = type, Value = value };
+
+        [Test]
+        public void ConditionalCard_CanOnlyBePlayed_WhenConditionHolds()
+        {
+            var g = new TestGame();
+            // 손패 1장 이하일 때: 상대 영웅에게 3 피해 (낸 카드는 손패에서 빠진 뒤로 판정)
+            var spell = g.AddToHand(0, TestCards.Spell("c_last", 0,
+                TestCards.Effect(TriggerType.OnEnter, TargetType.EnemyHero, ActionType.Damage, 3, null, null, Cond(ConditionType.HandCountAtMost, 1))));
+            var a = g.AddToHand(0, TestCards.Minion());
+            g.AddToHand(0, TestCards.Minion());
+
+            var result = g.Validate(new TCG.Core.Commands.PlayCardCommand(0, spell.Id));
+            Assert.That(result.IsValid, Is.False, "손패가 2장 남으므로 낼 수 없다");
+            Assert.That(result.Reason, Does.Contain("조건"));
+
+            g.P0.Hand.Remove(a);
+            Assert.That(g.Validate(new TCG.Core.Commands.PlayCardCommand(0, spell.Id)).IsValid, Is.True, "손패가 1장 남으면 낼 수 있다");
+            Assert.That(g.P0.Hand.Contains(spell), Is.True, "판정은 상태를 바꾸지 않는다");
+        }
+
+        [Test]
+        public void ConditionalMinion_CountsItselfOnBoard_LikeWhenItTriggers()
+        {
+            var g = new TestGame();
+            g.AddToBoard(0, TestCards.Minion());
+            var def = TestCards.Minion("c_pack", 1, 1, 1);
+            def.Effects.Add(TestCards.Effect(TriggerType.OnEnter, TargetType.EnemyHero, ActionType.Damage, 1, null, null,
+                Cond(ConditionType.FriendlyMinionCountAtLeast, 2)));
+            var card = g.AddToHand(0, def);
+
+            Assert.That(g.Validate(new TCG.Core.Commands.PlayCardCommand(0, card.Id)).IsValid, Is.True);
+            g.Play(card);
+            Assert.That(g.P1.Hero.Health, Is.EqualTo(29));
+        }
+
+        [Test]
+        public void ConditionOnNonPlayTrigger_DoesNotBlockPlaying()
+        {
+            var g = new TestGame();
+            var def = TestCards.Minion("c_late", 1, 1, 1);
+            def.Effects.Add(TestCards.Effect(TriggerType.OnTurnEnd, TargetType.EnemyHero, ActionType.Damage, 1, null, null,
+                Cond(ConditionType.HandCountAtMost, 0)));
+            var card = g.AddToHand(0, def);
+            g.AddToHand(0, TestCards.Minion());
+
+            Assert.That(g.Validate(new TCG.Core.Commands.PlayCardCommand(0, card.Id)).IsValid, Is.True);
+        }
+
         [Test]
         public void PlayedEvent_CarriesChosenTarget_AndSurvivesCodec()
         {

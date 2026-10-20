@@ -190,7 +190,47 @@ namespace TCG.Core.Rules
                 return ValidationResult.Fail("대상을 골라야 합니다.");
             }
 
+            if (!PlayConditionsMet(state, card, cmd))
+                return ValidationResult.Fail("조건이 맞지 않아 사용할 수 없습니다.");
+
             return ValidationResult.Ok;
+        }
+
+        /// <summary>
+        /// 낼 때 발동하는 효과("등장 시")에 조건이 있으면 모두 만족해야 낼 수 있다 (GameDesign §7, 2026-10-20 결정).
+        /// 효과가 실제로 발동하는 순간과 같은 상황으로 판정한다: 낸 카드는 손패에서 빠지고, 보드 카드는 보드에 놓인 뒤
+        /// (필드는 기존 필드가 빠진 뒤). 상태를 바꾸지 않도록 복사본에서 판정한다.
+        /// </summary>
+        bool PlayConditionsMet(GameState state, Entity card, PlayCardCommand cmd)
+        {
+            var effects = card.Definition.Effects;
+            if (effects == null || !effects.Exists(e => e?.Trigger?.Type == TriggerType.OnEnter && e.Conditions != null && e.Conditions.Count > 0))
+                return true;
+
+            var copy = state.Clone();
+            var player = copy.GetPlayer(cmd.PlayerIndex);
+            var played = copy.GetEntity(card.Id);
+            player.Hand.Remove(played);
+            if (played.Type != CardType.Spell)
+            {
+                var zone = player.GetZone(RuleContext.BoardZoneFor(played.Type));
+                if (played.Type == CardType.Field && zone.Count > 0)
+                    zone.Remove(zone.Entities[0]);
+                bool placed = cmd.Position.HasValue && zone.UsesSlots ? zone.TryPlaceAt(played, cmd.Position.Value) : zone.TryAdd(played);
+                if (!placed)
+                    return false;
+            }
+
+            var ctx = new RuleContext(copy, Registry);
+            for (int i = 0; i < effects.Count; i++)
+            {
+                var effect = effects[i];
+                if (effect?.Trigger?.Type != TriggerType.OnEnter || effect.Conditions == null || effect.Conditions.Count == 0)
+                    continue;
+                if (!ctx.ConditionsMet(new EffectContext(ctx, played, effect, i, cmd.TargetId)))
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>카드의 "등장 시" 효과 중 플레이어가 대상을 골라야 하는 것이 있는가.</summary>

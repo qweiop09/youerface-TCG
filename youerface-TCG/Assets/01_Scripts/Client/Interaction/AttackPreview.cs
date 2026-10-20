@@ -7,7 +7,7 @@ namespace TCG.Client.Interaction
 {
     /// <summary>
     /// 공격 결과 미리보기 (GameDesign §11.2): 공격 화살표를 고를 수 있는 대상에 올리면 양쪽 예상 피해를 띄우고,
-    /// 쓰러지면 "처치"를 붙인다. 공격력·체력만으로 계산한 예상값이다 (피해 트리거 효과는 넣지 않음).
+    /// 쓰러지면 "처치"를 붙인다. 대상이 쓰러지면 반격이 없으므로 공격자 쪽은 띄우지 않는다. 공격력·체력만으로 계산한 예상값이다 (피해 트리거 효과는 넣지 않음).
     /// </summary>
     public sealed class AttackPreview : MonoBehaviour
     {
@@ -54,7 +54,8 @@ namespace TCG.Client.Interaction
 
             gameObject.SetActive(true);
             Set(_onTarget, targetPos, attack, targetHealth);
-            if (minion != null)
+            // 공격으로 쓰러지는 기물은 반격하지 않는다 (GameDesign §7.6).
+            if (minion != null && attack < targetHealth)
                 Set(_onAttacker, attackerPos, counter, attacker.Health ?? 0);
             else
                 _onAttacker.gameObject.SetActive(false);
